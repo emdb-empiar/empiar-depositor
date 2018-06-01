@@ -1,0 +1,103 @@
+{
+	"title": "Vibrio cholerae toxin-coregulated pilus machine",
+	"release_date": "IM",
+	"experiment_type": 3,
+	"cross_references": [{"name": "EMD-8000"}],
+	"authors": [
+		{
+		  "name": "('Smith', 'JW')",
+		  "order_id": 0,
+		  "author_orcid": "0000-0002-1825-0097"
+		},
+		{
+		  "name": "('Arathorn', 'A')",
+		  "order_id": 1,
+		  "author_orcid": null
+		}
+    ],
+	"corresponding_author": {
+		"author_orcid": "0000-0002-1825-0097",
+		"middle_name": "William",
+		"organization": "Division of Biology, California Institute of Technology",
+		"street": "1200 E California Blvd",
+		"town_or_city": "Pasadena",
+		"state_or_province": "California",
+		"post_or_zip": "48984",
+		"telephone": "012345",
+		"fax": null,
+		"first_name": "John",
+		"last_name": "Smith",
+		"email": "example@test.com",
+		"country": "US"
+	},
+	"principal_investigator": [
+	{
+	    "author_orcid": "0000-0002-1825-0097",
+	    "middle_name": "William",
+	    "organization": "Division of Biology, California Institute of Technology",
+	    "street": "1200 E California Blvd",
+	    "town_or_city": "Pasadena",
+	    "state_or_province": "California",
+	    "post_or_zip": "48984",
+	    "telephone": "012345",
+	    "fax": null,
+	    "first_name": "John",
+	    "last_name": "Smith",
+	    "email": "test@example.com",
+	    "country": "US"
+	}],
+	"imagesets": [
+		{
+			"name": "Different tilt series for the Vibrio cholerae toxin-coregulated pilus machine revealed by electron cryotomography",
+			"directory": "/data/micrographs",
+			"category": "('T9', '')",
+			"header_format": "('T1', '')",
+			"data_format": "('T1', '')",
+			"num_images_or_tilt_series": 16,
+			"frames_per_image": 121,
+			"frame_range_min": 1,
+			"frame_range_max": 121,
+			"voxel_type": "('T5', '')",
+			"pixel_width": null,
+			"pixel_height": null,
+			"details": null,
+			"image_width": 3838,
+			"image_height": 3710
+		}
+	],
+	"citation": [
+		{
+			"authors": [
+			    {
+			      "name": "('Smith', 'JW')",
+				  "order_id": 0,
+			      "author_orcid": "0000-0002-1825-0097"
+			    },
+			    {
+			      "name": "('Arathorn', 'A')",
+				  "order_id": 1,
+			      "author_orcid": null
+			    }
+			],
+			"editors": [],
+			"published": true,
+			"j_or_nj_citation": true,
+			"title": "Architecture of the Vibrio cholerae toxin-coregulated pilus machine revealed by electron cryotomography",
+			"volume": "2",
+			"country": null,
+			"first_page": "16269",
+			"last_page": "16269",
+			"year": 2017,
+			"language": "English",
+			"doi": "10.1038/nmicrobiol.2016.269",
+			"pubmedid": "28165453",
+			"details": "Three-dimensional in situ structure of a T4bP machine in its piliated and non-piliated states constructed from its tilt series.",
+			"book_chapter_title": null,
+			"publisher": null,
+			"publication_location": null,
+			"journal": "Nature microbiology",
+			"journal_abbreviation": "Nat Microbiol",
+			"issue": null
+		}
+	]
+}
