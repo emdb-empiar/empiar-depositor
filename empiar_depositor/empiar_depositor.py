@@ -237,7 +237,7 @@ class EmpiarDepositor:
         sys.exit(1)
 
 
-def main():
+def main(args):
     """
     Deposit the data into EMPIAR
     """
@@ -290,7 +290,7 @@ Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
                             help="Activate this flag to skip the verification of SSL certificate.")
         parser.add_argument("-v", "--version", action="version", version=version, help="Show program's version number "
                                                                                        "and exit.")
-        args = parser.parse_args()
+        args = parser.parse_args(args)
 
         json_file_exists = os.path.isfile(args.json_input)
         if not json_file_exists:
@@ -343,4 +343,4 @@ Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)
