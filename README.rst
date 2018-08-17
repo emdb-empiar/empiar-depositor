@@ -81,8 +81,8 @@ Examples:
 
 .. code:: bash
 
-  empiar-depositor 0123456789 ~/Documents/empiar_deposition_1.json ~/Applications/Aspera\ Connect.app/Contents/\ Resources/ascp ~/Downloads/micrographs
+  empiar-depositor 0123456789 ~/Documents/empiar_deposition_1.json ~/Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
 
 .. code:: bash
 
-  empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 ~/Documents/empiar_deposition_1.json ~/\ Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
+  empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 ~/Documents/empiar_deposition_1.json ~/Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs

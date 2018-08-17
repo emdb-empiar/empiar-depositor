@@ -19,6 +19,8 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b5, 20180913, Andrii Iudin: Documentation typo fixes.
+1.6b4, 20180913, Andrii Iudin: Added Python 3 support.
 1.6b3, 20180531, Andrii Iudin: Updated documentation.
 1.6b2, 20180531, Andrii Iudin: Fix of a typo.
 1.6b1, 20180531, Andrii Iudin: Added an option to re-deposit data.
@@ -62,7 +64,7 @@ class EmpiarDepositor:
             'Authorization': 'Token ' + empiar_token,
         }
         self.deposition_headers = {
-            'Content-Type': 'application/json',
+            'Accept': 'application/json',
         }
         self.deposition_headers.update(self.auth_header)
 
@@ -153,10 +155,10 @@ class EmpiarDepositor:
         # Poll process for new output until finished
         while True:
             next_line = process.stdout.readline()
-            if next_line == '' and process.poll() is not None:
+            if next_line == b'' and process.poll() is not None:
                 break
 
-            sys.stdout.write(next_line)
+            sys.stdout.write(next_line.decode("utf-8"))
             sys.stdout.flush()
 
         process.communicate()
@@ -237,7 +239,7 @@ class EmpiarDepositor:
         sys.exit(1)
 
 
-def main(args):
+def main():
     """
     Deposit the data into EMPIAR
     """
@@ -266,7 +268,7 @@ Resources/ascp ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 ~/Documents/empiar_deposition_1.json ~/\
 Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
                 """
-        version = "1.6b1"
+        version = "1.6b5"
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False)
         parser.add_argument("-h", "--help", action="help", help="Show this help message and exit.")
@@ -290,7 +292,7 @@ Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
                             help="Activate this flag to skip the verification of SSL certificate.")
         parser.add_argument("-v", "--version", action="version", version=version, help="Show program's version number "
                                                                                        "and exit.")
-        args = parser.parse_args(args)
+        args = parser.parse_args()
 
         json_file_exists = os.path.isfile(args.json_input)
         if not json_file_exists:
@@ -304,14 +306,19 @@ Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
         if not ascp_specified:
             sys.exit("Please specify the correct path to ascp executable. By default it is installed in "
                      "~/.aspera/connect/bin directory on Linux machines, in ~/Applications/Aspera\ Connect.app/"
-                     "Contents/Resources directory on Macs and in C:\Users\<username>\AppData\Local\Programs\Aspera"
+                     "Contents/Resources directory on Macs and in C:\\Users\<username>\AppData\Local\Programs\Aspera"
                      "\Aspera Connect\\bin on Windows\n")
 
         process = subprocess.Popen('"' + args.ascp + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         p_out, p_err = process.communicate()
+
+        if not p_out or p_err:
+            sys.exit("Error while trying to check ascp. Returned output:\n" + str(p_out) + "\n" + str(p_err) + "\n")
+
+        p_out = str(p_out)
         ascp_is_working = "Usage: ascp" in p_out and process.returncode == 112
         if not ascp_is_working:
-            sys.exit("The specified ascp does not work. Returned output:\n" + str(p_out) + "\n")
+            sys.exit("The specified ascp does not work. Returned output:\n" + p_out + "\n")
 
         if args.entry_thumbnail:
             thumbnail_exists = os.path.isfile(args.entry_thumbnail)
@@ -343,4 +350,4 @@ Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()

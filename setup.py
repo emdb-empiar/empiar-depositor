@@ -11,7 +11,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='empiar-depositor',    # This is the name of your PyPI-package.
-    version='1.6b3',                          # Update the version number for new releases
+    version='1.6b5',                          # Update the version number for new releases
     packages=find_packages(),
     author="Andrii Iudin",
     author_email="andrii@ebi.ac.uk, andrii.iudin@gmail.com",
@@ -32,8 +32,9 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         # python version
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.7',
     ],
-    entry_points = {
+    entry_points={
         'console_scripts': ['empiar-depositor = empiar_depositor.empiar_depositor:main'],
     }
 )

@@ -2,6 +2,7 @@ import unittest
 import requests
 from getpass import getpass
 
+
 class TestRequests(unittest.TestCase):
     token = getpass(prompt='Token: ')
     headers = {
@@ -13,11 +14,13 @@ class TestRequests(unittest.TestCase):
         resp = requests.post('https://wwwdev.ebi.ac.uk/pdbe/emdb/empiar_api/empiar/api/deposit_entry/')
         self.assertEqual(resp.status_code, 401)
 
-
     def test_too_many_requests_throttling(self):
         # Has to be run once a minute at most
-        for i in xrange(0,11):
-            resp = requests.post('https://wwwdev.ebi.ac.uk/pdbe/emdb/empiar_api/empiar/api/deposit_entry/', headers=self.headers, verify=False)
+        resp = requests.post('https://wwwdev.ebi.ac.uk/pdbe/emdb/empiar_api/empiar/api/deposit_entry/',
+                             headers=self.headers, verify=False)
+        for i in range(11):
+            resp = requests.post('https://wwwdev.ebi.ac.uk/pdbe/emdb/empiar_api/empiar/api/deposit_entry/',
+                                 headers=self.headers, verify=False)
 
         self.assertEqual(resp.status_code, 429)
 
