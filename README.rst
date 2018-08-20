@@ -12,27 +12,33 @@ Please follow these steps:
 
 1. Create a JSON file according to the structure provided in the `example <https://empiar.org/deposition/json_submission>`_.
 
-2. Download and install `ascp tool <http://downloads.asperasoft.com/connect2/>`_.
+2. Download and install `ascp tool <http://downloads.asperasoft.com/connect2/>`_ and/or install globus-cli (supported version 1.7.0) with
 
-3. Set the environmental variable for Aspera password to the one that EMPIAR team has provided you with. Please note that this is not the API token from 1) and is a separate password from the one that you create when registering EMPIAR user.
+  .. code:: bash
+
+    pip install globus-cli==1.7.0
+
+  Globus can be used as a separate upload option or as a fallback if Aspera fails.
+
+3. Set the environmental variable for EMPIAR transfer password to the one that EMPIAR team has provided you with. Please note that this is not the API token from 1) and is a separate password from the one that you create when registering EMPIAR user.
 
    - On Linux and Mac OS X execute
 
      .. code:: bash
 
-       export ASPERA_SCP_PASS=<empiar_aspera_password>
+       export EMPIAR_TRANSFER_PASS=<empiar_transfer_password>
 
    - On Windows execute
 
      .. code:: batch
 
-       set ASPERA_SCP_PASS=<empiar_aspera_password>
+       set EMPIAR_TRANSFER_PASS=<empiar_transfer_password>
 
 4. Run the script as:
 
    .. code:: bash
 
-     empiar-depositor [-h] [-e ENTRY_THUMBNAIL] [-r RESUME RESUME] [-i] [-v] EMPIAR_TOKEN JSON_INPUT ASCP_PATH DATA_PATH
+     empiar-depositor [-h] [-a ASCP] [-g GLOBUS] [-f] [-e ENTRY_THUMBNAIL] [-r ENTRY_ID ENTRY_DIR] [-i] [-v] EMPIAR_TOKEN JSON_INPUT DATA
 
 Positional arguments:
 +++++++++++++++++++++
@@ -45,10 +51,6 @@ EMPIAR API token. Contact EMPIAR team to obtain it.
 ~~~~~~~~~~~~~~
 The location of the JSON with EMPIAR deposition information.
 
-``ASCP``
-~~~~~~~~
-The location of the ascp executable. By default it is installed in ~/.aspera/connect/bin directory on Linux machines, in ~/Applications/Aspera\ Connect.app/Contents/Resources directory on Macs and in C:\Users\<username>\AppData\Local\Programs\Aspera\Aspera Connect\bin on Windows.
-
 ``DATA``
 ~~~~~~~~
 The location of the data that you would like to upload to EMPIAR. It should contain directories that correspond to the image set directories specified in the JSON file.
@@ -59,6 +61,20 @@ Optional arguments:
 ``-h, --help``
 ~~~~~~~~~~~~~~
 Show help message and exit
+
+
+
+``-a, --ascp``
+~~~~~~~~~~~~~~
+The location of the ascp executable. By default it is installed in ~/.aspera/connect/bin directory on Linux machines, in ~/Applications/Aspera\\ Connect.app/Contents/Resources directory on Macs and in C:\\Users\\<username>\\AppData\\Local\\Programs\\Aspera\\Aspera Connect\\bin on Windows.
+
+``-g GLOBUS, --globus GLOBUS``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Use Globus if Aspera is not specified or Aspera transfer fails. Requirement: globus-cli installed and an endpoint created. Specify your unique user identifier (UUID) as the input parameter.
+
+``-f, --globus-force-login``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Force login to Globus. Login even if the globus-cli already has valid login credentials. Any existing credentials will be removed from local storage and globally revoked.
 
 ``-e ENTRY_THUMBNAIL, --entry-thumbnail ENTRY_THUMBNAIL``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -81,8 +97,8 @@ Examples:
 
 .. code:: bash
 
-  empiar-depositor 0123456789 ~/Documents/empiar_deposition_1.json ~/Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
+  empiar-depositor -a ~/Applications/Aspera\ Connect.app/Contents/Resources/ascp 0123456789 ~/Documents/empiar_deposition_1.json ~/Downloads/micrographs
 
 .. code:: bash
 
-  empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 ~/Documents/empiar_deposition_1.json ~/Applications/Aspera\ Connect.app/Contents/Resources/ascp ~/Downloads/micrographs
+  empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Documents/empiar_deposition_1.json ~/Downloads/micrographs

@@ -2,6 +2,7 @@ import unittest
 from empiar_depositor.empiar_depositor import EmpiarDepositor
 from mock import Mock, patch
 from requests.models import Response
+from testutils import capture
 
 
 class TestCreateNewDeposition(unittest.TestCase):
@@ -9,43 +10,61 @@ class TestCreateNewDeposition(unittest.TestCase):
     def test_no_response(self, mock_post):
         mock_post.return_value = None
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "", "")
+        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
 
-        with self.assertRaises(SystemExit) as cm:
-            emp_dep.create_new_deposition()
-        self.assertEqual(cm.exception.args[0], 1)
+        c = emp_dep.create_new_deposition()
+        self.assertEqual(c, 1)
 
     @patch('empiar_depositor.empiar_depositor.requests.post')
-    def test_unauthorized(self, mock_post):
+    def test_unauthorized_stdout(self, mock_post):
         mock_post.return_value = Mock(ok=True, spec=Response)
         mock_post.return_value.status_code = 401
         mock_post.return_value.json.return_value = {'detail': 'Invalid token.'}
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "", "")
- 
-        with self.assertRaises(SystemExit) as cm:
-            emp_dep.create_new_deposition()
-        self.assertTrue('The creation of an EMPIAR deposition was not successful. Returned response:' in
-                        cm.exception.args[0] and 'Status code: 401' in cm.exception.args[0])
+        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
+
+        with capture(emp_dep.create_new_deposition) as output:
+            self.assertTrue('The creation of an EMPIAR deposition was not successful. Returned response:' in
+                            output and 'Status code: 401' in output)
 
     @patch('empiar_depositor.empiar_depositor.requests.post')
-    def test_non_int_entry_id(self, mock_post):
+    def test_unauthorized_return(self, mock_post):
+        mock_post.return_value = Mock(ok=True, spec=Response)
+        mock_post.return_value.status_code = 401
+        mock_post.return_value.json.return_value = {'detail': 'Invalid token.'}
+
+        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
+
+        c = emp_dep.create_new_deposition()
+        self.assertEqual(c, 1)
+
+    @patch('empiar_depositor.empiar_depositor.requests.post')
+    def test_non_int_entry_id_stdout(self, mock_post):
         mock_post.return_value = Mock(ok=True, spec=Response)
         mock_post.return_value.json.return_value = {'deposition': True, 'directory': 'DIR', 'entry_id': 'ID'}
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "", "")
- 
-        with self.assertRaises(SystemExit) as cm:
-            emp_dep.create_new_deposition()
-        self.assertTrue('Error occurred while trying to create an EMPIAR deposition. Returned entry id is not an '
-                        'integer number' in cm.exception.args[0])
+        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
+
+        with capture(emp_dep.create_new_deposition) as output:
+            self.assertTrue('Error occurred while trying to create an EMPIAR deposition. Returned entry id is not an '
+                            'integer number' in output)
+
+    @patch('empiar_depositor.empiar_depositor.requests.post')
+    def test_non_int_entry_id_return(self, mock_post):
+        mock_post.return_value = Mock(ok=True, spec=Response)
+        mock_post.return_value.json.return_value = {'deposition': True, 'directory': 'DIR', 'entry_id': 'ID'}
+
+        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
+
+        c = emp_dep.create_new_deposition()
+        self.assertEqual(c, 1)
 
     @patch('empiar_depositor.empiar_depositor.requests.post')
     def test_successful_deposition(self, mock_post):
         mock_post.return_value = Mock(ok=True, spec=Response)
         mock_post.return_value.json.return_value = {'deposition': True, 'directory': 'DIR', 'entry_id': 1}
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "", "")
+        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
  
         c = emp_dep.create_new_deposition()
         self.assertEqual(c, 0)

@@ -9,12 +9,11 @@ class TestAsperaUpload(unittest.TestCase):
         mock_popen.return_value.stdout.readline.return_value = b''
         mock_popen.return_value.returncode = 1
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "", "", entry_id=1,
+        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "", "ascp", entry_id=1,
                                   entry_directory='DIR')
 
-        with self.assertRaises(SystemExit) as cm:
-            emp_dep.aspera_upload()
-        self.assertEqual(cm.exception.args[0], 1)
+        c = emp_dep.aspera_upload()
+        self.assertEqual(c, 1)
 
 
 if __name__ == '__main__':

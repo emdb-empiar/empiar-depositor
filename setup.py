@@ -10,8 +10,8 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='empiar-depositor',    # This is the name of your PyPI-package.
-    version='1.6b5',                          # Update the version number for new releases
+    name='empiar-depositor',
+    version='1.6b6',
     packages=find_packages(),
     author="Andrii Iudin",
     author_email="andrii@ebi.ac.uk, andrii.iudin@gmail.com",
