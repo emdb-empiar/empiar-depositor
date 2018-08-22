@@ -14,11 +14,11 @@ Please follow these steps:
 
 2. Download and install `ascp tool <http://downloads.asperasoft.com/connect2/>`_ and/or install globus-cli (supported version 1.7.0) with
 
-  .. code:: bash
+   .. code:: bash
 
-    pip install globus-cli==1.7.0
+     pip install globus-cli==1.7.0
 
-  Globus can be used as a separate upload option or as a fallback if Aspera fails.
+   Globus can be used as a separate upload option or as a fallback if Aspera fails.
 
 3. Set the environmental variable for EMPIAR transfer password to the one that EMPIAR team has provided you with. Please note that this is not the API token from 1) and is a separate password from the one that you create when registering EMPIAR user.
 
@@ -62,10 +62,8 @@ Optional arguments:
 ~~~~~~~~~~~~~~
 Show help message and exit
 
-
-
-``-a, --ascp``
-~~~~~~~~~~~~~~
+``-a ASCP, --ascp ASCP``
+~~~~~~~~~~~~~~~~~~~~~~~~
 The location of the ascp executable. By default it is installed in ~/.aspera/connect/bin directory on Linux machines, in ~/Applications/Aspera\\ Connect.app/Contents/Resources directory on Macs and in C:\\Users\\<username>\\AppData\\Local\\Programs\\Aspera\\Aspera Connect\\bin on Windows.
 
 ``-g GLOBUS, --globus GLOBUS``

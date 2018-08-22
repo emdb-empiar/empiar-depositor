@@ -1,23 +1,15 @@
 import unittest
-from empiar_depositor.empiar_depositor import EmpiarDepositor
-from mock import patch
-from testutils import capture
 
-missing_id_json_str = """{
-  "DATA_TYPE": "transfer_result",
-  "code": "Accepted",
-  "message": "The transfer has been accepted and a task has been created and queued for execution",
-  "request_id": "abc",
-  "resource": "/transfer",
-  "submission_id": "Task123",
-  "task_link": {
-    "DATA_TYPE": "link",
-    "href": "task/Task123?format=json",
-    "rel": "related",
-    "resource": "task",
-    "title": "related task"
-  }
-}"""
+from mock import patch
+
+from empiar_depositor.empiar_depositor import EmpiarDepositor
+from tests.testutils import capture
+
+missing_id_json_str = b'{\n  "DATA_TYPE": "transfer_result",\n  "code": "Accepted",\n  "message": "The transfer has ' \
+                      b'been accepted and a task has been created and queued for execution",\n  "request_id": "abc",' \
+                      b'\n  "resource": "/transfer",\n  "submission_id": "Task123",\n  "task_link": {\n    ' \
+                      b'"DATA_TYPE": "link",\n    "href": "task/Task123?format=json",\n    "rel": "related",\n    ' \
+                      b'"resource": "task",\n    "title": "related task"\n  }\n}'
 
 
 class TestGlobusUpload(unittest.TestCase):
@@ -45,8 +37,8 @@ class TestGlobusUpload(unittest.TestCase):
 
     @patch('empiar_depositor.empiar_depositor.subprocess.Popen')
     def test_invalid_json_stdout(self, mock_popen):
-        mock_popen.return_value.communicate.return_value = ("The transfer has been accepted and a task has been created"
-                                                            " and queued for execution. Task ID: 123", None)
+        mock_popen.return_value.communicate.return_value = (b'The transfer has been accepted and a task has been '
+                                                            b'created and queued for execution. Task ID: 123', None)
         mock_popen.return_value.returncode = 0
 
         emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "globus_obj", "", "globusid",
@@ -57,8 +49,8 @@ class TestGlobusUpload(unittest.TestCase):
 
     @patch('empiar_depositor.empiar_depositor.subprocess.Popen')
     def test_invalid_json_return(self, mock_popen):
-        mock_popen.return_value.communicate.return_value = ("The transfer has been accepted and a task has been created"
-                                                            " and queued for execution. Task ID: 123", None)
+        mock_popen.return_value.communicate.return_value = (b'The transfer has been accepted and a task has been '
+                                                            b'created and queued for execution. Task ID: 123', None)
         mock_popen.return_value.returncode = 0
 
         emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "globus_obj", "", "globusid",

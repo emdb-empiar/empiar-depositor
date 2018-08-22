@@ -2,7 +2,7 @@ import unittest
 from empiar_depositor.empiar_depositor import EmpiarDepositor
 from mock import Mock, patch
 from requests.models import Response
-from testutils import capture
+from tests.testutils import capture
 
 
 class TestSubmitDeposition(unittest.TestCase):

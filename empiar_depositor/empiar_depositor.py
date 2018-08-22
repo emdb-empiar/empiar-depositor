@@ -19,7 +19,8 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
-1.6b6, 20180820, Andrii Iudin: Added Globus support
+1.6b7, 20180820, Andrii Iudin: Fix of Aspera env password setting, adjustments for Python 3.
+1.6b6, 20180820, Andrii Iudin: Added Globus support.
 1.6b5, 20180913, Andrii Iudin: Documentation typo fixes.
 1.6b4, 20180913, Andrii Iudin: Added Python 3 support.
 1.6b3, 20180531, Andrii Iudin: Updated documentation.
@@ -206,7 +207,7 @@ class EmpiarDepositor:
 
         transfer_pass = os.environ.get('EMPIAR_TRANSFER_PASS')
         if transfer_pass:
-            os.environ.set('ASPERA_SCP_PASS', transfer_pass)
+            os.environ['ASPERA_SCP_PASS'] = transfer_pass
         sys.stdout.write('data: ' + str(self.data) + '\n')
         sys.stdout.write('ED: ' + self.entry_directory + '\n')
 
@@ -239,7 +240,7 @@ class EmpiarDepositor:
                             os.path.join(self.upload_dir, self.entry_directory, 'data', self.globus_data['obj_name']))]
 
         out_tr_init, err_tr_init, retcode_tr_init = run_shell_command(command_tr_init)
-        success_tr_init = "The transfer has been accepted and a task has been created and queued for execution"
+        success_tr_init = b'The transfer has been accepted and a task has been created and queued for execution'
         if err_tr_init or retcode_tr_init != 0 or not out_tr_init or success_tr_init not in out_tr_init:
             sys.stdout.write(
                 "Globus transfer initiation was not successful. Return code: %s.\nOutput:%s\nError message: %s\n" %
@@ -444,7 +445,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                                          str(p_err) + "\n")
                         aspera_okay = False
 
-                    ascp_is_working = "Usage: ascp" in p_out and process.returncode == 112
+                    ascp_is_working = b'Usage: ascp' in p_out and process.returncode == 112
                     if not ascp_is_working:
                         sys.stdout.write("The specified ascp does not work. Returned output:\n" + str(p_out) + "\n")
                         aspera_okay = False
@@ -476,8 +477,8 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             command_login = [command_login_str]
 
             out_login, err_login, retcode_login = run_shell_command(command_login)
-            success_login = 'You have successfully logged in to the Globus CLI' in out_login or \
-                            'You are already logged in' in out_login
+            success_login = b'You have successfully logged in to the Globus CLI' in out_login or \
+                            b'You are already logged in' in out_login
             if not success_login or err_login or retcode_login != 0:
                 sys.stdout.write(
                     "Error while logging in into Globus. Return code: %s.\nOutput:%s\nError message: %s\n" %
@@ -531,8 +532,8 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             # Activate the source endpoint
             command_activate = ['globus endpoint activate %s --format json' % endpoint_id]
             out_activate, err_activate, retcode_activate = run_shell_command(command_activate)
-            success_activation = 'Endpoint is already activated' in out_activate or \
-                                 'Autoactivation succeeded' in out_activate
+            success_activation = b'Endpoint is already activated' in out_activate or \
+                                 b'Autoactivation succeeded' in out_activate
             if err_activate or retcode_activate != 0 or not success_activation:
                 sys.stdout.write(
                     "Globus endpoint cannot be activated. Return code: %s.\nOutput:%s\nError message: %s\n" %
@@ -547,7 +548,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             command_ls = ['globus ls %s:%s --format json' % (endpoint_id, args.data)]
             out_ls, err_ls, retcode_ls = run_shell_command(command_ls)
 
-            if retcode_ls == 1 and "\'" + args.data + "\' is not a directory" in out_ls:
+            if retcode_ls == 1 and b'\'' + args.data + b'\' is not a directory' in out_ls:
                 globus_data['is_dir'] = False
                 if os.path.sep in args.data:
                     command_ls = ['globus ls %s:%s --filter =%s --format json' % (endpoint_id, dir_path,
@@ -557,7 +558,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
 
                 out_ls, err_ls, retcode_ls = run_shell_command(command_ls)
 
-            if retcode_ls != 0 or err_ls or '"DATA":' not in out_ls:
+            if retcode_ls != 0 or err_ls or b'"DATA":' not in out_ls:
                 sys.stdout.write("Error while checking the existence of the object that is to be uploaded. Make sure "
                                  "that the path to the upload corresponds to the directory sharing settings in Globus. "
                                  "Return code: %s.\nOutput:%s\nError message: %s\n" %
@@ -573,8 +574,8 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             command_activate = ['globus endpoint activate --format json --myproxy --myproxy-username emp_dep '
                                 '%s %s' % (myproxy_pass, endpoint_id)]
             out_activate, err_activate, retcode_activate = run_shell_command(command_activate)
-            success_activation = 'Endpoint is already activated' in out_activate or \
-                                 'Endpoint activated successfully' in out_activate
+            success_activation = b'Endpoint is already activated' in out_activate or \
+                                 b'Endpoint activated successfully' in out_activate
             if err_activate or retcode_activate != 0 or not success_activation:
                 sys.stdout.write(
                     "Globus endpoint cannot be activated. Return code: %s.\nOutput:%s\nError message: %s\n" %
