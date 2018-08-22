@@ -2,6 +2,15 @@
 EMPIAR depositor
 ================
 
+.. image:: https://badge.fury.io/py/empiar-depositor.svg
+    :target: https://badge.fury.io/py/empiar-depositor
+
+.. image:: https://travis-ci.org/emdb-empiar/empiar-depositor.svg?branch=dev
+    :target: https://travis-ci.org/emdb-empiar/empiar-depositor
+
+.. image:: https://coveralls.io/repos/github/emdb-empiar/empiar-depositor/badge.svg?branch=dev
+    :target: https://coveralls.io/github/emdb-empiar/empiar-depositor?branch=dev
+
 Command line tool for depositing data into `Electron Microscopy Public Image Archive
 <https://empiar.org>`_.
 
