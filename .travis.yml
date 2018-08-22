@@ -3,6 +3,10 @@ python:
   - "2.7"
   - "3.7"
 
+env:
+  global:
+    - secure:
+
 before_install:
   - python --version
   - sudo apt-get update
@@ -18,7 +22,7 @@ install:
 
 script:
   - pip install globus-cli==1.7.0
-  - coverage run --include="/home/travis/build/emdb-empiar/empiar-depositor/*" `which empiar-depositor` tests
+  - coverage run --source=/home/travis/build/emdb-empiar/empiar_depositor setup.py test
 
 after_success:
   - coveralls
