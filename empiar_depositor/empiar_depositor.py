@@ -347,7 +347,7 @@ class EmpiarDepositor:
         return 1
 
 
-def main():
+def main(args):
     """
     Deposit the data into EMPIAR
     """
@@ -416,10 +416,9 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                             help="Activate this flag to skip the verification of SSL certificate.")
         parser.add_argument("-v", "--version", action="version", version=version, help="Show program's version number "
                                                                                        "and exit.")
-
         parser.add_argument("-d", "--development", action="store_true", default=False, help=argparse.SUPPRESS)
 
-        args = parser.parse_args()
+        args = parser.parse_args(args)
 
         json_file_exists = os.path.isfile(args.json_input)
         if not json_file_exists:
@@ -618,4 +617,4 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))
