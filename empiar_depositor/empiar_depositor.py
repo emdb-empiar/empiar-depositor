@@ -347,7 +347,7 @@ class EmpiarDepositor:
         return 1
 
 
-def main(args):
+def main(args=None):
     """
     Deposit the data into EMPIAR
     """
@@ -418,6 +418,8 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                                                                                        "and exit.")
         parser.add_argument("-d", "--development", action="store_true", default=False, help=argparse.SUPPRESS)
 
+        if args is None:
+            args = sys.argv[1:]
         args = parser.parse_args(args)
 
         json_file_exists = os.path.isfile(args.json_input)
@@ -617,4 +619,4 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())
