@@ -80,10 +80,12 @@ class EmpiarDepositor:
         else:
             self.upload_dir = 'upload'
 
-        self.deposition_url = "https://" + env_prefix + ".ebi.ac.uk/pdbe/emdb/empiar/deposition/api/deposit_entry/"
-        self.redeposition_url = "https://" + env_prefix + ".ebi.ac.uk/pdbe/emdb/empiar/deposition/api/redeposit_entry/"
-        self.thumbnail_url = "https://" + env_prefix + ".ebi.ac.uk/pdbe/emdb/empiar/deposition/api/image_upload/"
-        self.submission_url = "https://" + env_prefix + ".ebi.ac.uk/pdbe/emdb/empiar/deposition/api/submit_entry/"
+        self.server_root = "https://" + env_prefix + ".ebi.ac.uk/pdbe/emdb"
+
+        self.deposition_url = self.server_root + "/empiar/deposition/api/deposit_entry/"
+        self.redeposition_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
+        self.thumbnail_url = self.server_root + "/empiar/deposition/api/image_upload/"
+        self.submission_url = self.server_root + "/empiar/deposition/api/submit_entry/"
 
         self.auth_header = {
             'Authorization': 'Token ' + empiar_token,
