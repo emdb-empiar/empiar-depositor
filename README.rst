@@ -19,7 +19,7 @@ How to use
 
 Please follow these steps:
 
-1. Create a JSON file according to the `schema <empiar_deposition.schema.json>`_. An `example <tests/deposition_json/working_example.json>`_ of such file.
+1. Create a JSON file according to the `schema <empiar_deposition.schema.json>`_. An `example <tests/deposition_json/working_example.json>`_ of such a file.
 
 2. Download and install `ascp tool <http://downloads.asperasoft.com/connect2/>`_ and/or install globus-cli (supported version 1.7.0) with
 
