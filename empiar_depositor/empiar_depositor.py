@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b9, 20191112, Andrii Iudin: Documentation update.
 1.6b8, 20181030, Andrii Iudin: Update of requirements due to security vulnerability of requests package.
 1.6b7, 20180820, Andrii Iudin: Fix of Aspera env password setting, adjustments for Python 3.
 1.6b6, 20180820, Andrii Iudin: Added Globus support.
@@ -381,7 +382,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b8"
+        version = "1.6b9"
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
                                          formatter_class=argparse.RawTextHelpFormatter)
