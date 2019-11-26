@@ -19,6 +19,8 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b10, 20191125, Andrii Iudin: Added an option to upload the data without submission to facilitate streaming
+measurements.
 1.6b9, 20191112, Andrii Iudin: Documentation update.
 1.6b8, 20181030, Andrii Iudin: Update of requirements due to security vulnerability of requests package.
 1.6b7, 20180820, Andrii Iudin: Fix of Aspera env password setting, adjustments for Python 3.
@@ -71,7 +73,7 @@ class EmpiarDepositor:
 
     def __init__(self, empiar_token, json_input, data, ascp=None, globus=None, globus_data=None,
                  globus_force_login=False, ignore_certificate=False, entry_thumbnail=None, entry_id=None,
-                 entry_directory=None, dev=False):
+                 entry_directory=None, stop_submit=False, dev=False):
         env_prefix = "www"
 
         self.dev = dev
@@ -106,6 +108,7 @@ class EmpiarDepositor:
         self.entry_thumbnail = entry_thumbnail
         self.entry_id = entry_id
         self.entry_directory = entry_directory
+        self.stop_submit = stop_submit
 
     @staticmethod
     def globus_upload_wait(task_id):
@@ -344,8 +347,11 @@ class EmpiarDepositor:
 
             if upload_code == 0:
                 sys.stdout.write("Finished uploading the data.\n")
-                submit_result = self.submit_deposition()
-                return submit_result
+                if self.stop_submit:
+                    return upload_code
+                else:
+                    submit_result = self.submit_deposition()
+                    return submit_result
 
         sys.stdout.write("The deposition of the entry was not successful.\n")
         return 1
@@ -382,7 +388,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b9"
+        version = "1.6b10"
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
                                          formatter_class=argparse.RawTextHelpFormatter)
@@ -416,6 +422,8 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                             help="Resume Aspera upload. The entry has to be successfully created beforehand as "
                                  "specifying EMPIAR entry ID and entry directory is required. Aspera transfer will "
                                  "continue from where it stopped.", nargs=2)
+        parser.add_argument("-s", "--stop-submit", action="store_true", default=False, dest="stop_submit",
+                            help="Do not submit the entry once the upload has finished.")
         parser.add_argument("-i", "--ignore-certificate", action="store_false", default=True, dest="ignore_certificate",
                             help="Activate this flag to skip the verification of SSL certificate.")
         parser.add_argument("-v", "--version", action="version", version=version, help="Show program's version number "
@@ -612,7 +620,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
 
         emp_dep = EmpiarDepositor(args.empiar_token, args.json_input, args.data, args.ascp, endpoint_id, globus_data,
                                   args.globus_force_login, args.ignore_certificate, args.entry_thumbnail, entry_id,
-                                  entry_directory, args.development)
+                                  entry_directory, args.stop_submit, args.development)
 
         dep_result = emp_dep.deposit_data()
         return dep_result
