@@ -54,7 +54,7 @@ Positional arguments:
 
 ``EMPIAR_TOKEN``
 ~~~~~~~~~~~~~~~~
-EMPIAR API token. Contact EMPIAR team to obtain it.
+EMPIAR API token. You can generate it at `https://empiar.org/deposition/api_token <https://empiar.org/deposition/api_token>`_. Alternatively, instead of the token you can use your EMPIAR username and provide your password with **-p** optional argument (see below for more information).
 
 ``JSON_INPUT``
 ~~~~~~~~~~~~~~
@@ -70,6 +70,10 @@ Optional arguments:
 ``-h, --help``
 ~~~~~~~~~~~~~~
 Show help message and exit
+
+``-p PASSWORD, --password PASSWORD``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Use basic authentication (username + password) instead of token authentication. If no password is provided for this argument, then the user is prompted for a password.
 
 ``-a ASCP, --ascp ASCP``
 ~~~~~~~~~~~~~~~~~~~~~~~~

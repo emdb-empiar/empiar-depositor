@@ -428,7 +428,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
 
         parser.add_argument("-p", "-password", action="store", default=None, const=True, nargs="?", dest="password",
                             help="Use basic authentication (username + password) instead of token authentication. If "
-                                 "no password is provided for this argument, then the user is asked for a password.")
+                                 "no password is provided for this argument, then the user is prompted for a password.")
         parser.add_argument("-a", "-ascp", action="store", default=False, dest="ascp",
                             help="The location of the ascp executable. By default it is installed in "
                                  "~/.aspera/connect/bin directory on Linux machines, in "
