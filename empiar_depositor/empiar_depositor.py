@@ -130,7 +130,7 @@ class EmpiarDepositor:
         :return: the response from the request
         """
         if self.password:
-            response = request_method(*args, **kwargs, auth=HTTPBasicAuth(self.username, self.password))
+            response = request_method(*args, auth=HTTPBasicAuth(self.username, self.password), **kwargs)
         else:
             response = request_method(*args, **kwargs)
         return response
