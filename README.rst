@@ -113,3 +113,7 @@ Examples:
 .. code:: bash
 
   empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Documents/empiar_deposition_1.json ~/Downloads/micrographs
+
+.. code:: bash
+
+  empiar-depositor -a ~/Applications/Aspera\ Connect.app/Contents/Resources/ascp my_empiar_user -p my_empiar_password ~/Documents/empiar_deposition_1.json ~/Downloads/micrographs
