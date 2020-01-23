@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b11, 20191125, Andrii Iudin: Basic Authentication is allowed as an alternative to Token Authentication.
 1.6b10, 20191125, Andrii Iudin: Added an option to upload the data without submission to facilitate streaming
 measurements.
 1.6b9, 20191112, Andrii Iudin: Documentation update.
@@ -45,12 +46,15 @@ __author__ = 'Andrii Iudin'
 __email__ = 'andrii@ebi.ac.uk'
 __date__ = '2018-02-13'
 
+import copy
 import json
 import os.path
 import requests
 import subprocess
 import sys
 import argparse
+from getpass import getpass
+from requests.auth import HTTPBasicAuth
 from requests.models import Response
 
 
@@ -73,7 +77,7 @@ class EmpiarDepositor:
 
     def __init__(self, empiar_token, json_input, data, ascp=None, globus=None, globus_data=None,
                  globus_force_login=False, ignore_certificate=False, entry_thumbnail=None, entry_id=None,
-                 entry_directory=None, stop_submit=False, dev=False):
+                 entry_directory=None, stop_submit=False, dev=False, password=None):
         env_prefix = "www"
 
         self.dev = dev
@@ -90,9 +94,16 @@ class EmpiarDepositor:
         self.thumbnail_url = self.server_root + "/empiar/deposition/api/image_upload/"
         self.submission_url = self.server_root + "/empiar/deposition/api/submit_entry/"
 
-        self.auth_header = {
-            'Authorization': 'Token ' + empiar_token,
-        }
+        if password:
+            self.username = empiar_token
+            self.auth_header = {
+                'WWW-Authenticate': 'Basic realm="api"',
+            }
+        else:
+            self.auth_header = {
+                'Authorization': 'Token ' + empiar_token,
+            }
+
         self.deposition_headers = {
             'Content-type': 'application/json',
         }
@@ -100,6 +111,7 @@ class EmpiarDepositor:
 
         self.json_input = json_input
         self.data = data
+        self.password = password
         self.ascp = ascp
         self.globus = globus
         self.globus_data = globus_data
@@ -109,6 +121,19 @@ class EmpiarDepositor:
         self.entry_id = entry_id
         self.entry_directory = entry_directory
         self.stop_submit = stop_submit
+
+    def make_request(self, request_method, *args, **kwargs):
+        """
+        Make a request - either using Basic Authentication or Token
+        :param request_method: the method of request, such as requests.get or requests.post
+        :param args: additional arguments for the request
+        :return: the response from the request
+        """
+        if self.password:
+            response = request_method(*args, auth=HTTPBasicAuth(self.username, self.password), **kwargs)
+        else:
+            response = request_method(*args, **kwargs)
+        return response
 
     @staticmethod
     def globus_upload_wait(task_id):
@@ -142,8 +167,8 @@ class EmpiarDepositor:
         """
         Create a new EMPIAR deposition
         """
-        deposition_response = requests.post(self.deposition_url, data=open(self.json_input, 'rb'),
-                                            headers=self.deposition_headers, verify=self.ignore_certificate)
+        deposition_response = self.make_request(requests.post, self.deposition_url, data=open(self.json_input, 'rb'),
+                                                headers=self.deposition_headers, verify=self.ignore_certificate)
 
         if isinstance(deposition_response, Response):
             deposition_response_json = deposition_response.json()
@@ -178,8 +203,8 @@ class EmpiarDepositor:
 
         data_dict['entry_id'] = self.entry_id
         json_obj = json.dumps(data_dict, ensure_ascii=False).encode('utf8')
-        redeposition_response = requests.post(self.redeposition_url, data=json_obj,
-                                              headers=self.deposition_headers, verify=self.ignore_certificate)
+        redeposition_response = self.make_request(requests.post, self.redeposition_url, data=json_obj,
+                                                  headers=self.deposition_headers, verify=self.ignore_certificate)
 
         if isinstance(redeposition_response, Response):
             redeposition_response_json = redeposition_response.json()
@@ -280,8 +305,8 @@ class EmpiarDepositor:
         sys.stdout.write("Initiating the upload of the thumbnail image...\n")
         f = open(self.entry_thumbnail, 'rb')
         files = {'file': (self.entry_thumbnail, f)}
-        thumbnail_response = requests.post(self.thumbnail_url, data={"entry_id": self.entry_id}, files=files,
-                                           headers=self.auth_header, verify=self.ignore_certificate)
+        thumbnail_response = self.make_request(requests.post, self.thumbnail_url, data={"entry_id": self.entry_id},
+                                               files=files, headers=self.auth_header, verify=self.ignore_certificate)
         f.close()
 
         if isinstance(thumbnail_response, Response):
@@ -304,8 +329,9 @@ class EmpiarDepositor:
         """
         sys.stdout.write("Initiating the submission of the deposition...\n")
 
-        submission_response = requests.post(self.submission_url, data='{"entry_id": "%s"}' % self.entry_id,
-                                            headers=self.deposition_headers, verify=self.ignore_certificate)
+        submission_response = self.make_request(requests.post, self.submission_url,
+                                                data='{"entry_id": "%s"}' % self.entry_id,
+                                                headers=self.deposition_headers, verify=self.ignore_certificate)
 
         if isinstance(submission_response, Response):
             submission_response_json = submission_response.json()
@@ -388,7 +414,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b10"
+        version = "1.1.6b11"
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
                                          formatter_class=argparse.RawTextHelpFormatter)
@@ -400,6 +426,9 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                             help="The location of the data that you would like to upload to EMPIAR. It should contain "
                                  "directories that correspond to the image set directories specified in the JSON file.")
 
+        parser.add_argument("-p", "-password", action="store", default=None, const=True, nargs="?", dest="password",
+                            help="Use basic authentication (username + password) instead of token authentication. If "
+                                 "no password is provided for this argument, then the user is prompted for a password.")
         parser.add_argument("-a", "-ascp", action="store", default=False, dest="ascp",
                             help="The location of the ascp executable. By default it is installed in "
                                  "~/.aspera/connect/bin directory on Linux machines, in "
@@ -616,17 +645,36 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                                  "deposition")
                 return 1
 
-        sys.stdout.write("You are performing the deposition into EMPIAR with following args: %s\n" % args)
+        args_clean_pwd = copy.deepcopy(args)
+        if args.password is not None:
+            if args.password is True:
+                args.password = getpass('Please enter your EMPIAR password to continue:\n')
+            args_clean_pwd.password = '****'
 
-        emp_dep = EmpiarDepositor(args.empiar_token, args.json_input, args.data, args.ascp, endpoint_id, globus_data,
-                                  args.globus_force_login, args.ignore_certificate, args.entry_thumbnail, entry_id,
-                                  entry_directory, args.stop_submit, args.development)
+        sys.stdout.write("You are performing the deposition into EMPIAR with following args: %s\n" % args_clean_pwd)
+
+        emp_dep = EmpiarDepositor(
+            empiar_token=args.empiar_token,
+            json_input=args.json_input,
+            data=args.data,
+            ascp=args.ascp,
+            globus=endpoint_id,
+            globus_data=globus_data,
+            globus_force_login=args.globus_force_login,
+            ignore_certificate=args.ignore_certificate,
+            entry_thumbnail=args.entry_thumbnail,
+            entry_id=entry_id,
+            entry_directory=entry_directory,
+            stop_submit=args.stop_submit,
+            dev=args.development,
+            password=args.password
+        )
 
         dep_result = emp_dep.deposit_data()
         return dep_result
 
     except requests.exceptions.RequestException as e:
-        sys.stdout.write(str(e)+'\n')
+        sys.stdout.write(str(e) + '\n')
         return 1
 
 

@@ -54,7 +54,7 @@ Positional arguments:
 
 ``EMPIAR_TOKEN``
 ~~~~~~~~~~~~~~~~
-EMPIAR API token. Contact EMPIAR team to obtain it.
+EMPIAR API token. You can generate it at `https://empiar.org/deposition/api_token <https://empiar.org/deposition/api_token>`_. Alternatively, instead of the token you can use your EMPIAR username and provide your password with **-p** optional argument (see below for more information).
 
 ``JSON_INPUT``
 ~~~~~~~~~~~~~~
@@ -70,6 +70,10 @@ Optional arguments:
 ``-h, --help``
 ~~~~~~~~~~~~~~
 Show help message and exit
+
+``-p PASSWORD, --password PASSWORD``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Use basic authentication (username + password) instead of token authentication. If no password is provided for this argument, then the user is prompted for a password.
 
 ``-a ASCP, --ascp ASCP``
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -109,3 +113,7 @@ Examples:
 .. code:: bash
 
   empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Documents/empiar_deposition_1.json ~/Downloads/micrographs
+
+.. code:: bash
+
+  empiar-depositor -a ~/Applications/Aspera\ Connect.app/Contents/Resources/ascp my_empiar_user -p my_empiar_password ~/Documents/empiar_deposition_1.json ~/Downloads/micrographs
