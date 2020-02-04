@@ -1,6 +1,6 @@
 {
 	"title": "Vibrio cholerae toxin-coregulated pilus machine",
-	"release_date": "IM",
+	"release_date": "RE",
 	"experiment_type": 3,
 	"cross_references": [{"name": "EMD-8000"}],
 	"authors": [
@@ -84,7 +84,7 @@
 			"j_or_nj_citation": true,
 			"title": "Architecture of the Vibrio cholerae toxin-coregulated pilus machine revealed by electron cryotomography",
 			"volume": "2",
-			"country": null,
+			"country": "US",
 			"first_page": "16269",
 			"last_page": "16269",
 			"year": 2017,
