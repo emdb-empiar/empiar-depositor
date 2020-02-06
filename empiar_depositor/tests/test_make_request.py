@@ -1,15 +1,16 @@
 import unittest
 import requests
 from empiar_depositor.empiar_depositor import EmpiarDepositor
+from empiar_depositor.tests.testutils import EmpiarDepositorTest
 from mock import patch
 
 
-class TestMakeResponse(unittest.TestCase):
+class TestMakeResponse(EmpiarDepositorTest):
     @patch('empiar_depositor.empiar_depositor.requests.post')
     def test_no_response_token_auth(self, mock_post):
         mock_post.return_value = None
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
 
         c = emp_dep.make_request(requests.post)
         self.assertEqual(c, None)
@@ -18,7 +19,7 @@ class TestMakeResponse(unittest.TestCase):
     def test_no_response_basic_auth(self, mock_post):
         mock_post.return_value = None
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "", password='12345')
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "", password='12345')
 
         c = emp_dep.make_request(requests.post)
         self.assertEqual(c, None)
