@@ -135,7 +135,7 @@
       "properties": {
         "author_orcid": {
           "$id": "/properties/corresponding_author/items/properties/author_orcid",
-          "type": "string",
+          "type": ["null", "string"],
           "pattern": "^([0-9]{4}-){3}[0-9]{3}([0-9]|X)$",
           "title": "The Author_orcid Schema ",
           "description": "ORCID identifier of the author. Apart from complying with regex it has to satisfy the checksum: https://support.orcid.org/knowledgebase/articles/116780-structure-of-the-orcid-identifier",
@@ -525,7 +525,7 @@
         "properties": {
           "author_orcid": {
             "$id": "/properties/principal_investigator/items/properties/author_orcid",
-            "type": "string",
+            "type": ["null", "string"],
             "pattern": "^([0-9]{4}-){3}[0-9]{3}([0-9]|X)$",
             "title": "The Author_orcid Schema ",
             "description": "ORCID identifier of the author. Apart from complying with regex it has to satisfy the checksum: https://support.orcid.org/knowledgebase/articles/116780-structure-of-the-orcid-identifier",
