@@ -19,7 +19,8 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
-1.6b11, 20191125, Andrii Iudin: Basic Authentication is allowed as an alternative to Token Authentication.
+1.6b12, 20200206, Andrii Iudin: Added optional output of the entry ID and the directory name.
+1.6b11, 20200114, Andrii Iudin: Basic Authentication is allowed as an alternative to Token Authentication.
 1.6b10, 20191125, Andrii Iudin: Added an option to upload the data without submission to facilitate streaming
 measurements.
 1.6b9, 20191112, Andrii Iudin: Documentation update.
@@ -77,7 +78,7 @@ class EmpiarDepositor:
 
     def __init__(self, empiar_token, json_input, data, ascp=None, globus=None, globus_data=None,
                  globus_force_login=False, ignore_certificate=False, entry_thumbnail=None, entry_id=None,
-                 entry_directory=None, stop_submit=False, dev=False, password=None):
+                 entry_directory=None, stop_submit=False, dev=False, password=None, output_id_dir=False):
         env_prefix = "www"
 
         self.dev = dev
@@ -121,6 +122,7 @@ class EmpiarDepositor:
         self.entry_id = entry_id
         self.entry_directory = entry_directory
         self.stop_submit = stop_submit
+        self.output_id_dir = output_id_dir
 
     def make_request(self, request_method, *args, **kwargs):
         """
@@ -339,6 +341,8 @@ class EmpiarDepositor:
                     submission_response_json['empiar_id']:
                 sys.stdout.write("Your submission was successful. The accession code that can be cited in paper is %s\n"
                                  % submission_response_json['empiar_id'])
+                if self.output_id_dir:
+                    return self.entry_id, self.entry_directory
                 return 0
             else:
                 sys.stdout.write("The submission of an EMPIAR deposition was not successful. Returned response: %s\n"
@@ -414,7 +418,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.1.6b11"
+        version = "1.1.6b12"
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
                                          formatter_class=argparse.RawTextHelpFormatter)
@@ -458,6 +462,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
         parser.add_argument("-v", "--version", action="version", version=version, help="Show program's version number "
                                                                                        "and exit.")
         parser.add_argument("-d", "--development", action="store_true", default=False, help=argparse.SUPPRESS)
+        parser.add_argument("-o", "--output-id-dir", action="store_true", default=False, help=argparse.SUPPRESS)
 
         if args is None:
             args = sys.argv[1:]
@@ -667,7 +672,8 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             entry_directory=entry_directory,
             stop_submit=args.stop_submit,
             dev=args.development,
-            password=args.password
+            password=args.password,
+            output_id_dir=args.output_id_dir
         )
 
         dep_result = emp_dep.deposit_data()
