@@ -11,7 +11,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='empiar-depositor',
-    version='1.6b13',
+    version='1.6b14',
     packages=find_packages(),
     author="Andrii Iudin",
     author_email="andrii@ebi.ac.uk, andrii.iudin@gmail.com",
@@ -19,6 +19,7 @@ setup(
     long_description=long_description,
     license="Apache License",
     keywords="EMPIAR, deposition, microscopy",
+    include_package_data=True,
     install_requires=["requests"],
     classifiers=[
         # maturity
