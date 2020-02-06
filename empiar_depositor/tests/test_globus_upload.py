@@ -1,9 +1,7 @@
 import unittest
-
 from mock import patch
-
 from empiar_depositor.empiar_depositor import EmpiarDepositor
-from tests.testutils import capture
+from empiar_depositor.tests.testutils import capture, EmpiarDepositorTest
 
 missing_id_json_str = b'{\n  "DATA_TYPE": "transfer_result",\n  "code": "Accepted",\n  "message": "The transfer has ' \
                       b'been accepted and a task has been created and queued for execution",\n  "request_id": "abc",' \
@@ -12,13 +10,13 @@ missing_id_json_str = b'{\n  "DATA_TYPE": "transfer_result",\n  "code": "Accepte
                       b'"resource": "task",\n    "title": "related task"\n  }\n}'
 
 
-class TestGlobusUpload(unittest.TestCase):
+class TestGlobusUpload(EmpiarDepositorTest):
     @patch('empiar_depositor.empiar_depositor.subprocess.Popen')
     def test_failed_init_stdout(self, mock_popen):
         mock_popen.return_value.communicate.return_value = ("Task ID: 123", "")
         mock_popen.return_value.returncode = 1
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "globus_obj", "", "globusid",
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "globus_obj", "", "globusid",
                                   {"is_dir": False, "obj_name": "globus_obj"}, entry_id=1, entry_directory="entry_dir")
 
         with capture(emp_dep.globus_upload) as output:
@@ -29,7 +27,7 @@ class TestGlobusUpload(unittest.TestCase):
         mock_popen.return_value.communicate.return_value = (None, None)
         mock_popen.return_value.returncode = 1
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "globus_obj", "", "globusid",
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "globus_obj", "", "globusid",
                                   {"is_dir": False, "obj_name": "globus_obj"}, entry_id=1, entry_directory="entry_dir")
 
         c = emp_dep.globus_upload()
@@ -41,7 +39,7 @@ class TestGlobusUpload(unittest.TestCase):
                                                             b'created and queued for execution. Task ID: 123', None)
         mock_popen.return_value.returncode = 0
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "globus_obj", "", "globusid",
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "globus_obj", "", "globusid",
                                   {"is_dir": False, "obj_name": "globus_obj"}, entry_id=1, entry_directory="entry_dir")
 
         c = emp_dep.globus_upload()
@@ -53,7 +51,7 @@ class TestGlobusUpload(unittest.TestCase):
                                                             b'created and queued for execution. Task ID: 123', None)
         mock_popen.return_value.returncode = 0
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "globus_obj", "", "globusid",
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "globus_obj", "", "globusid",
                                   {"is_dir": False, "obj_name": "globus_obj"}, entry_id=1, entry_directory="entry_dir")
 
         with capture(emp_dep.globus_upload) as output:
@@ -65,7 +63,7 @@ class TestGlobusUpload(unittest.TestCase):
         mock_popen.return_value.communicate.return_value = (missing_id_json_str, None)
         mock_popen.return_value.returncode = 0
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "globus_obj", "", "globusid",
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "globus_obj", "", "globusid",
                                   {"is_dir": False, "obj_name": "globus_obj"}, entry_id=1, entry_directory="entry_dir")
 
         c = emp_dep.globus_upload()
@@ -76,7 +74,7 @@ class TestGlobusUpload(unittest.TestCase):
         mock_popen.return_value.communicate.return_value = (missing_id_json_str, None)
         mock_popen.return_value.returncode = 0
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "globus_obj", "", "globusid",
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "globus_obj", "", "globusid",
                                   {"is_dir": False, "obj_name": "globus_obj"}, entry_id=1, entry_directory="entry_dir")
 
         with capture(emp_dep.globus_upload) as output:

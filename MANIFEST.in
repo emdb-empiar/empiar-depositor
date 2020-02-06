@@ -1,0 +1,3 @@
+include empiar_depositor/empiar_deposition.schema.json
+include empiar_depositor/tests/deposition_json/working_example.json
+include empiar_depositor/tests/img/entry_thumbnail.gif

@@ -2,15 +2,15 @@ import unittest
 from empiar_depositor.empiar_depositor import EmpiarDepositor
 from mock import Mock, patch
 from requests.models import Response
-from tests.testutils import capture
+from empiar_depositor.tests.testutils import capture, EmpiarDepositorTest
 
 
-class TestSubmitDeposition(unittest.TestCase):
+class TestSubmitDeposition(EmpiarDepositorTest):
     @patch('empiar_depositor.empiar_depositor.requests.post')
     def test_no_response(self, mock_post):
         mock_post.return_value = None
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
 
         c = emp_dep.submit_deposition()
         self.assertEqual(c, 1)
@@ -21,7 +21,7 @@ class TestSubmitDeposition(unittest.TestCase):
         mock_post.return_value.status_code = 403
         mock_post.return_value.json.return_value = {'detail': 'You do not have permission to perform this action.'}
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
 
         with capture(emp_dep.submit_deposition) as output:
             self.assertTrue('The submission of an EMPIAR deposition was not successful. Returned response:' in
@@ -33,7 +33,7 @@ class TestSubmitDeposition(unittest.TestCase):
         mock_post.return_value.status_code = 403
         mock_post.return_value.json.return_value = {'detail': 'You do not have permission to perform this action.'}
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
 
         c = emp_dep.submit_deposition()
         self.assertEqual(c, 1)
@@ -43,7 +43,7 @@ class TestSubmitDeposition(unittest.TestCase):
         mock_post.return_value = Mock(ok=True, spec=Response)
         mock_post.return_value.json.return_value = {'submission': True, 'empiar_id': 'EMPIAR-10001'}
 
-        emp_dep = EmpiarDepositor("ABC123", "tests/deposition_json/working_example.json", "")
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
   
         c = emp_dep.submit_deposition()
         self.assertEqual(c, 0)
