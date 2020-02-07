@@ -195,7 +195,7 @@
         },
         "town_or_city": {
           "$id": "/properties/corresponding_author/properties/town_or_city",
-          "type": ["null", "string"],
+          "type": "string",
           "title": "The Town_or_city Schema ",
           "maxLength": 60,
           "default": null,
@@ -215,7 +215,7 @@
         },
         "post_or_zip": {
           "$id": "/properties/corresponding_author/properties/post_or_zip",
-          "type": ["null", "string"],
+          "type": "string",
           "title": "The Post_or_zip Schema ",
           "maxLength": 60,
           "default": null,
@@ -585,7 +585,7 @@
           },
           "town_or_city": {
             "$id": "/properties/principal_investigator/properties/town_or_city",
-            "type": ["null", "string"],
+            "type": "string",
             "title": "The Town_or_city Schema ",
             "maxLength": 60,
             "default": null,
@@ -605,7 +605,7 @@
           },
           "post_or_zip": {
             "$id": "/properties/principal_investigator/properties/post_or_zip",
-            "type": ["null", "string"],
+            "type": "string",
             "title": "The Post_or_zip Schema ",
             "maxLength": 60,
             "default": null,
@@ -1232,7 +1232,7 @@
           },
           "country": {
             "$id": "/properties/citation/items/properties/country",
-            "type": "string",
+            "type": ["null", "string"],
             "title": "The Country Schema ",
             "enum": [
               null,

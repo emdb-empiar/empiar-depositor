@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b15, 20200207, Andrii Iudin: Consolidating Schema with EMPIAR deposition interface.
 1.6b14, 20200206, Andrii Iudin: Setup.py adjusted to faciliate the additional files.
 1.6b13, 20200206, Andrii Iudin: Schema and tests are now a part of the Python module.
 1.6b12, 20200206, Andrii Iudin: Added optional output of the entry ID and the directory name.
@@ -420,7 +421,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b14"
+        version = "1.6b15"
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
                                          formatter_class=argparse.RawTextHelpFormatter)
