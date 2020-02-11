@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b16, 20200211, Andrii Iudin: Switched to a dedicated development server for external developers.
 1.6b15, 20200207, Andrii Iudin: Consolidating Schema with EMPIAR deposition interface.
 1.6b14, 20200206, Andrii Iudin: Setup.py adjusted to faciliate the additional files.
 1.6b13, 20200206, Andrii Iudin: Schema and tests are now a part of the Python module.
@@ -82,16 +83,14 @@ class EmpiarDepositor:
     def __init__(self, empiar_token, json_input, data, ascp=None, globus=None, globus_data=None,
                  globus_force_login=False, ignore_certificate=False, entry_thumbnail=None, entry_id=None,
                  entry_directory=None, stop_submit=False, dev=False, password=None, output_id_dir=False):
-        env_prefix = "www"
 
         self.dev = dev
         if self.dev:
-            env_prefix += "dev"
+            self.server_root = "https://wwwdev.ebi.ac.uk/pdbe/emdb/external_test/master"
             self.upload_dir = 'tmp/andrii'
         else:
+            self.server_root = "https://www.ebi.ac.uk/pdbe/emdb"
             self.upload_dir = 'upload'
-
-        self.server_root = "https://" + env_prefix + ".ebi.ac.uk/pdbe/emdb"
 
         self.deposition_url = self.server_root + "/empiar/deposition/api/deposit_entry/"
         self.redeposition_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
@@ -421,7 +420,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b15"
+        version = "1.6b16"
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
                                          formatter_class=argparse.RawTextHelpFormatter)
