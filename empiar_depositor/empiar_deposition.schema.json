@@ -1041,8 +1041,19 @@
               "Three-dimensional in situ structure of a T4bP machine in its piliated and non-piliated states constructed from its tilt series."
             ]
           },
+          "scipion_workflow": {
+            "$id": "/properties/imagesets/items/properties/scipion_workflow",
+            "type": ["null", "string"],
+            "title": "The Scipion_workflow Schema ",
+            "default": null,
+            "maxLength": 200,
+            "description": "Scipion workflow file provides a great way to reproduce previous processing steps and is particularly useful to repeat steps for similar samples or to share knowledge between users.",
+            "examples": [
+              "data/workflow.json"
+            ]
+          },
           "micrographs_file_pattern": {
-            "$id": "/properties/imagesets/items/properties/details",
+            "$id": "/properties/imagesets/items/properties/micrographs_file_pattern",
             "type": ["null", "string"],
             "title": "The Micrographs_file_pattern Schema ",
             "default": null,
@@ -1053,7 +1064,7 @@
             ]
           },
           "picked_particles_file_pattern": {
-            "$id": "/properties/imagesets/items/properties/details",
+            "$id": "/properties/imagesets/items/properties/picked_particles_file_pattern",
             "type": ["null", "string"],
             "title": "The Picked_particles_file_pattern Schema ",
             "default": null,
@@ -1064,7 +1075,7 @@
             ]
           },
           "picked_particles_directory": {
-            "$id": "/properties/imagesets/items/properties/details",
+            "$id": "/properties/imagesets/items/properties/picked_particles_directory",
             "type": ["null", "string"],
             "title": "The Picked_particles_directory Schema ",
             "default": null,

@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b17, 20200218, Andrii Iudin: Added Scipion workflow to the schema and the example JSON.
 1.6b16, 20200211, Andrii Iudin: Switched to a dedicated development server for external developers.
 1.6b15, 20200207, Andrii Iudin: Consolidating Schema with EMPIAR deposition interface.
 1.6b14, 20200206, Andrii Iudin: Setup.py adjusted to faciliate the additional files.
@@ -420,7 +421,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b16"
+        version = "1.6b17"
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
                                          formatter_class=argparse.RawTextHelpFormatter)

@@ -61,6 +61,7 @@
 			"pixel_width": null,
 			"pixel_height": null,
 			"details": null,
+			"scipion_workflow": "data/workflow.json",
 			"image_width": 3838,
 			"image_height": 3710
 		}
