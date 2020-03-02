@@ -5,6 +5,9 @@ EMPIAR depositor
 .. image:: https://badge.fury.io/py/empiar-depositor.svg
     :target: https://badge.fury.io/py/empiar-depositor
 
+.. image:: https://img.shields.io/pypi/pyversions/empiar-depositor
+    :alt: PyPI - Python Version
+
 .. image:: https://travis-ci.org/emdb-empiar/empiar-depositor.svg?branch=dev
     :target: https://travis-ci.org/emdb-empiar/empiar-depositor
 
