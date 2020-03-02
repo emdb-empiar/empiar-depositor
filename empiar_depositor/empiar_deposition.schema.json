@@ -1044,7 +1044,7 @@
             "type": "string",
             "pattern": "^(\\('T([2-9]|10?)', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
             "title": "The Header_format Schema ",
-            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4','T7' - 'SPIDER', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
+            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4', 'T7' - 'SPIDER', 'T8' - 'XML', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
             "examples": [
               "('T1', '')",
               "('OT', 'NEW HEADER FORMAT')"
@@ -1055,7 +1055,7 @@
             "type": "string",
             "pattern": "^(\\('T([2-9]|10?)', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
             "title": "The Data_format Schema ",
-            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4','T7' - 'SPIDER', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
+            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4','T7' - 'SPIDER', 'T8' - 'BIG DATA VIEWER HDF5', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
             "examples": [
               "('T1', '')",
               "('OT', 'NEW DATA FORMAT')"
