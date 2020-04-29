@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b20, 20200429, Andrii Iudin: Schema update - now we accept references to IDR.
 1.6b19, 20200302, Andrii Iudin: It is now possible to upload Big Data Viewer HDF5 files.
 1.6b18, 20200220, Andrii Iudin: Moved Scipion workflow outside of image sets.
 1.6b17, 20200218, Andrii Iudin: Added Scipion workflow to the schema and the example JSON.
@@ -423,7 +424,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b19"
+        version = "1.6b20"
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
                                          formatter_class=argparse.RawTextHelpFormatter)
