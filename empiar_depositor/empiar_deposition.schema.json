@@ -44,10 +44,13 @@
         3,
         4,
         5,
-        6
+        6,
+        7,
+        8,
+        9
       ],
       "default": 3,
-      "description": "Type of the EMPIAR entry: 1 - image data collected using soft x-ray tomography, 2 - simulated data, for instance, created using InSilicoTEM (note: we only accept simulated data in special circumstances such as test/training sets for validation challenges: you need to ask for and be granted permission PRIOR to deposition otherwise the dataset will be rejected), 3 - raw image data relating to structures deposited to the Electron Microscopy Data Bank, 4 - image data collected using serial block-face scanning electron microscopy (like the Gatan 3View system), 5 - image data collected using focused ion beam scanning electron microscopy, 6 - integrative hybrid modelling data.",
+      "description": "Type of the EMPIAR entry: 1 - image data collected using soft x-ray tomography, 2 - simulated data, for instance, created using InSilicoTEM (note: we only accept simulated data in special circumstances such as test/training sets for validation challenges: you need to ask for and be granted permission PRIOR to deposition otherwise the dataset will be rejected), 3 - raw image data relating to structures deposited to the Electron Microscopy Data Bank, 4 - image data collected using serial block-face scanning electron microscopy (like the Gatan 3View system), 5 - image data collected using focused ion beam scanning electron microscopy, 6 - integrative hybrid modelling data, 7 - correlative light-electron microscopy, 8 - correlative light X-ray microscopy, 9 - microcrystal electron diffraction",
       "examples": [
         3
       ]
@@ -93,6 +96,27 @@
       },
       "default": [],
       "description": "Array of references to BioStudies"
+    },
+    "idr_references": {
+      "$id": "/properties/idr_references",
+      "type": "array",
+      "items": {
+        "$id": "/properties/idr_references/items",
+        "type": "object",
+        "properties": {
+          "name": {
+            "$id": "/properties/idr_references/items/properties/name",
+            "type": "string",
+            "pattern": "^idr.*$",
+            "title": "The Name Schema ",
+            "examples": [
+              "idr1040"
+            ]
+          }
+        }
+      },
+      "default": [],
+      "description": "Array of references to IDR"
     },
     "authors": {
       "$id": "/properties/authors",
