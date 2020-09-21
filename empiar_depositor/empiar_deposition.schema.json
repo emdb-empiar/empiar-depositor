@@ -65,7 +65,7 @@
           "name": {
             "$id": "/properties/cross_references/items/properties/name",
             "type": "string",
-            "pattern": "^(EMD)-[0-9]{4}$",
+            "pattern": "^(EMD)-[0-9]{4,}$",
             "title": "The Name Schema ",
             "examples": [
               "EMD-8000"
