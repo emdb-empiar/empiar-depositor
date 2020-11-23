@@ -100,6 +100,7 @@ class EmpiarDepositor:
         self.redeposition_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
         self.thumbnail_url = self.server_root + "/empiar/deposition/api/image_upload/"
         self.submission_url = self.server_root + "/empiar/deposition/api/submit_entry/"
+        self.check_users_url = self.server_root + "/empiar/deposition/api/users_exist/"
 
         if password:
             self.username = empiar_token
@@ -142,6 +143,25 @@ class EmpiarDepositor:
         else:
             response = request_method(*args, **kwargs)
         return response
+
+    def check_users_exist(self, data):
+        """
+        Check if users exist
+        :param endpoint: API endpoint to check whether users exist
+        :param data: list of usernames or emails or ORCiDs
+        :return: False if at least one user does not exist, otherwise True
+        """
+        self.make_request(requests.post, self.check_users_url, data=data, headers=self.deposition_headers,
+                          verify=self.ignore_certificate)
+
+    def check_usernames(self, data):
+        if data:
+            data['type'] = 'u'
+        self.check_users_exist(data)
+
+    # grant_rights_usernames):
+    # check_emails(args.grant_rights_emails)
+    # check_orcids(args.grant_rights_orcids)
 
     @staticmethod
     def globus_upload_wait(task_id):
@@ -426,6 +446,8 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
         version = "1.6b20"
 
+        possible_rights_help_text = "Rights can be 1 - Owner, 2 - View only, 3 - View and Edit, 4 - View, Edit and " \
+                                    "Submit. There can be only one deposition owner."
         parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
                                          formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument("-h", "--help", action="help", help="Show this help message and exit.")
@@ -435,7 +457,6 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
         parser.add_argument("data", metavar="DATA",
                             help="The location of the data that you would like to upload to EMPIAR. It should contain "
                                  "directories that correspond to the image set directories specified in the JSON file.")
-
         parser.add_argument("-p", "-password", action="store", default=None, const=True, nargs="?", dest="password",
                             help="Use basic authentication (username + password) instead of token authentication. If "
                                  "no password is provided for this argument, then the user is prompted for a password.")
@@ -457,6 +478,17 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                             help="Thumbnail image that will represent your deposition on EMPIAR pages. Minimum size is "
                                  "400 x 400, preferred format is png. If none is provided, then the image from the "
                                  "related EMDB entry will be used.")
+
+        parser.add_argument("-gu", "--grant-rights-usernames", action="store",
+                            help="Comma separated list of usernames and rights in format <username>:<rights>. " +
+                                 possible_rights_help_text)
+        parser.add_argument("-ge", "--grant-rights-emails", action="store",
+                            help="Comma separated list of emails addresses and rights in format "
+                                 "<email_address>:<rights>. " + possible_rights_help_text)
+        parser.add_argument("-go", "--grant-rights-orcids", action="store",
+                            help="Comma separated list of ORCiDs and rights in format <orcid>:<rights>. " +
+                                 possible_rights_help_text)
+
         parser.add_argument("-r", "--resume", action="store", metavar=("ENTRY_ID", "ENTRY_DIR"),
                             help="Resume Aspera upload. The entry has to be successfully created beforehand as "
                                  "specifying EMPIAR entry ID and entry directory is required. Aspera transfer will "
@@ -661,6 +693,11 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             if args.password is True:
                 args.password = getpass('Please enter your EMPIAR password to continue:\n')
             args_clean_pwd.password = '****'
+
+        if args.grant_rights_usernames:
+            check_usernames(args.grant_rights_usernames)
+            check_emails(args.grant_rights_emails)
+            check_orcids(args.grant_rights_orcids)
 
         sys.stdout.write("You are performing the deposition into EMPIAR with following args: %s\n" % args_clean_pwd)
 
