@@ -86,7 +86,8 @@ class EmpiarDepositor:
 
     def __init__(self, empiar_token, json_input, data, ascp=None, globus=None, globus_data=None,
                  globus_force_login=False, ignore_certificate=False, entry_thumbnail=None, entry_id=None,
-                 entry_directory=None, stop_submit=False, dev=False, password=None, output_id_dir=False):
+                 entry_directory=None, stop_submit=False, dev=False, password=None, output_id_dir=False,
+                 grant_rights_usernames=None, grant_rights_emails=None, grant_rights_orcids=None):
 
         self.dev = dev
         if self.dev:
@@ -100,7 +101,6 @@ class EmpiarDepositor:
         self.redeposition_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
         self.thumbnail_url = self.server_root + "/empiar/deposition/api/image_upload/"
         self.submission_url = self.server_root + "/empiar/deposition/api/submit_entry/"
-        self.check_users_url = self.server_root + "/empiar/deposition/api/users_exist/"
 
         if password:
             self.username = empiar_token
@@ -130,6 +130,9 @@ class EmpiarDepositor:
         self.entry_directory = entry_directory
         self.stop_submit = stop_submit
         self.output_id_dir = output_id_dir
+        self.grant_rights_usernames = grant_rights_usernames
+        self.grant_rights_emails = grant_rights_emails
+        self.grant_rights_orcids = grant_rights_orcids
 
     def make_request(self, request_method, *args, **kwargs):
         """
@@ -143,25 +146,6 @@ class EmpiarDepositor:
         else:
             response = request_method(*args, **kwargs)
         return response
-
-    def check_users_exist(self, data):
-        """
-        Check if users exist
-        :param endpoint: API endpoint to check whether users exist
-        :param data: list of usernames or emails or ORCiDs
-        :return: False if at least one user does not exist, otherwise True
-        """
-        self.make_request(requests.post, self.check_users_url, data=data, headers=self.deposition_headers,
-                          verify=self.ignore_certificate)
-
-    def check_usernames(self, data):
-        if data:
-            data['type'] = 'u'
-        self.check_users_exist(data)
-
-    # grant_rights_usernames):
-    # check_emails(args.grant_rights_emails)
-    # check_orcids(args.grant_rights_orcids)
 
     @staticmethod
     def globus_upload_wait(task_id):
@@ -351,6 +335,49 @@ class EmpiarDepositor:
         sys.stdout.write("The upload of the thumbnail was not successful.\n")
         return 1
 
+    def grant_rights(self):
+        """
+        Grant rights to users
+        """
+        sys.stdout.write("Initiating the granting rights to the deposition...\n")
+
+        data_list = []
+        grant_rights_successes = []
+        if self.grant_rights_usernames:
+            data_list.append({'rights_mode': 'u', 'rights_dict': self.grant_rights_usernames})
+            grant_rights_successes.append(False)
+        if self.grant_rights_emails:
+            data_list.append({'rights_mode': 'e', 'rights_dict': self.grant_rights_emails})
+            grant_rights_successes.append(False)
+        if self.grant_rights_orcids:
+            data_list.append({'rights_mode': 'o', 'rights_dict': self.grant_rights_orcids})
+            grant_rights_successes.append(False)
+
+        for i in range(len(data_list)):
+            data_dict = data_list[i]
+            grant_rights_response = self.make_request(
+                requests.post, self.thumbnail_url, data={"entry_id": self.entry_id} + data_dict,
+                headers=self.auth_header, verify=self.ignore_certificate
+            )
+            if isinstance(grant_rights_response, Response):
+                grant_rights_response_json = grant_rights_response.json()
+                grant_rights_successes[i] = True
+                if grant_rights_response.status_code == 200 and \
+                        'result' in grant_rights_response_json and \
+                        grant_rights_response_json['result'] == True:
+
+                    sys.stdout.write(f"Successfully granted rights {data_dict} EMPIAR deposition {self.entry_id}.\n")
+                else:
+                    sys.stdout.write("The granting rights for EMPIAR deposition for %s was not successful. Returned "
+                                     "response: %s\nStatus code: %s\n" % (str(grant_rights_response),
+                                                                          data_dict,
+                                                                          grant_rights_response.status_code))
+
+        if False in grant_rights_successes:
+            return 1
+
+        return 0
+
     def submit_deposition(self):
         """
         Submit the deposition for annotation
@@ -403,11 +430,19 @@ class EmpiarDepositor:
 
             if upload_code == 0:
                 sys.stdout.write("Finished uploading the data.\n")
-                if self.stop_submit:
-                    return upload_code
-                else:
-                    submit_result = self.submit_deposition()
-                    return submit_result
+
+                grant_rights_exist = self.grant_rights_usernames or self.grant_rights_emails or self.grant_rights_orcids
+                grant_rights_result = 0
+
+                if grant_rights_exist:
+                    grant_rights_result = self.grant_rights()
+
+                if not grant_rights_exist or (grant_rights_exist and grant_rights_result == 0):
+                    if self.stop_submit:
+                        return upload_code
+                    else:
+                        submit_result = self.submit_deposition()
+                        return submit_result
 
         sys.stdout.write("The deposition of the entry was not successful.\n")
         return 1
@@ -694,11 +729,6 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                 args.password = getpass('Please enter your EMPIAR password to continue:\n')
             args_clean_pwd.password = '****'
 
-        if args.grant_rights_usernames:
-            check_usernames(args.grant_rights_usernames)
-            check_emails(args.grant_rights_emails)
-            check_orcids(args.grant_rights_orcids)
-
         sys.stdout.write("You are performing the deposition into EMPIAR with following args: %s\n" % args_clean_pwd)
 
         emp_dep = EmpiarDepositor(
@@ -716,7 +746,10 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             stop_submit=args.stop_submit,
             dev=args.development,
             password=args.password,
-            output_id_dir=args.output_id_dir
+            output_id_dir=args.output_id_dir,
+            grant_rights_usernames=args.grant_rights_usernames,
+            grant_rights_emails=args.grant_rights_emails,
+            grant_rights_orcids=args.grant_rights_orcids
         )
 
         dep_result = emp_dep.deposit_data()
