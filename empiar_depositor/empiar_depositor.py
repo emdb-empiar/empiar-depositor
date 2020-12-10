@@ -78,6 +78,15 @@ def run_shell_command(command):
     return p_out, p_err, process.returncode
 
 
+def check_json_response(response):
+    """
+    Check if the response has JSON content type
+    :param response: Response object of requests Python module
+    :return: True if response has JSON content type, False otherwise
+    """
+    return isinstance(response, Response) and response.headers.get('content-type') == 'application/json'
+
+
 class EmpiarDepositor:
     """
     The :class:`EmpiarDepositor <EmpiarDepositor>` object, which is used to create EMPIAR deposition, upload data and
@@ -91,16 +100,18 @@ class EmpiarDepositor:
 
         self.dev = dev
         if self.dev:
-            self.server_root = "https://wwwdev.ebi.ac.uk/pdbe/emdb/external_test/master"
+            # self.server_root = "https://wwwdev.ebi.ac.uk/pdbe/emdb/external_test/master"
+            self.server_root = "https://127.0.0.1:8000"
             self.upload_dir = 'tmp/andrii'
         else:
-            self.server_root = "https://www.ebi.ac.uk/pdbe/emdb"
+            # self.server_root = "https://www.ebi.ac.uk/pdbe/emdb"
             self.upload_dir = 'upload'
 
         self.deposition_url = self.server_root + "/empiar/deposition/api/deposit_entry/"
         self.redeposition_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
         self.thumbnail_url = self.server_root + "/empiar/deposition/api/image_upload/"
         self.submission_url = self.server_root + "/empiar/deposition/api/submit_entry/"
+        self.grant_rights_url = self.server_root + "/empiar/deposition/api/grant_rights/"
 
         if password:
             self.username = empiar_token
@@ -182,7 +193,7 @@ class EmpiarDepositor:
         deposition_response = self.make_request(requests.post, self.deposition_url, data=open(self.json_input, 'rb'),
                                                 headers=self.deposition_headers, verify=self.ignore_certificate)
 
-        if isinstance(deposition_response, Response):
+        if check_json_response(deposition_response):
             deposition_response_json = deposition_response.json()
 
             if 'deposition' in deposition_response_json and deposition_response_json['deposition'] is True and \
@@ -215,10 +226,10 @@ class EmpiarDepositor:
 
         data_dict['entry_id'] = self.entry_id
         json_obj = json.dumps(data_dict, ensure_ascii=False).encode('utf8')
-        redeposition_response = self.make_request(requests.post, self.redeposition_url, data=json_obj,
+        redeposition_response = self.make_request(requests.put, self.redeposition_url, data=json_obj,
                                                   headers=self.deposition_headers, verify=self.ignore_certificate)
 
-        if isinstance(redeposition_response, Response):
+        if check_json_response(redeposition_response):
             redeposition_response_json = redeposition_response.json()
 
             if 'deposition' in redeposition_response_json and redeposition_response_json['deposition'] is True and \
@@ -321,7 +332,7 @@ class EmpiarDepositor:
                                                files=files, headers=self.auth_header, verify=self.ignore_certificate)
         f.close()
 
-        if isinstance(thumbnail_response, Response):
+        if check_json_response(thumbnail_response):
             thumbnail_response_json = thumbnail_response.json()
 
             if 'thumbnail_upload' in thumbnail_response_json and thumbnail_response_json['thumbnail_upload'] is True:
@@ -356,15 +367,15 @@ class EmpiarDepositor:
         for i in range(len(data_list)):
             data_dict = data_list[i]
             grant_rights_response = self.make_request(
-                requests.post, self.thumbnail_url, data={"entry_id": self.entry_id} + data_dict,
+                requests.post, self.grant_rights_url, data={"entry_id": self.entry_id} + data_dict,
                 headers=self.auth_header, verify=self.ignore_certificate
             )
-            if isinstance(grant_rights_response, Response):
+            if check_json_response(grant_rights_response):
                 grant_rights_response_json = grant_rights_response.json()
                 grant_rights_successes[i] = True
                 if grant_rights_response.status_code == 200 and \
-                        'result' in grant_rights_response_json and \
-                        grant_rights_response_json['result'] == True:
+                        'grant_rights' in grant_rights_response_json and \
+                        grant_rights_response_json['grant_rights'] == True:
 
                     sys.stdout.write(f"Successfully granted rights {data_dict} EMPIAR deposition {self.entry_id}.\n")
                 else:
@@ -388,7 +399,7 @@ class EmpiarDepositor:
                                                 data='{"entry_id": "%s"}' % self.entry_id,
                                                 headers=self.deposition_headers, verify=self.ignore_certificate)
 
-        if isinstance(submission_response, Response):
+        if check_json_response(submission_response):
             submission_response_json = submission_response.json()
             if 'submission' in submission_response_json and submission_response_json['submission'] is True and \
                     submission_response_json['empiar_id']:

@@ -14,7 +14,7 @@
       "author_orcid": "0000-0002-1825-0097"
     },
     {
-      "name": "('Arathorn', 'A')",
+      "name": "('Test', 'T')",
       "order_id": 1,
       "author_orcid": null
     }
@@ -82,7 +82,7 @@
           "author_orcid": "0000-0002-1825-0097"
         },
         {
-          "name": "('Arathorn', 'A')",
+          "name": "('Test', 'T')",
           "order_id": 1,
           "author_orcid": null
         }
