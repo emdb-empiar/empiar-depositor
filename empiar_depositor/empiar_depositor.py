@@ -141,22 +141,9 @@ class EmpiarDepositor:
         self.entry_directory = entry_directory
         self.stop_submit = stop_submit
         self.output_id_dir = output_id_dir
-        self.grant_rights_usernames = grant_rights_usernames
-        self.grant_rights_emails = grant_rights_emails
-        self.grant_rights_orcids = grant_rights_orcids
-
-    def make_request(self, request_method, *args, **kwargs):
-        """
-        Make a request - either using Basic Authentication or Token
-        :param request_method: the method of request, such as requests.get or requests.post
-        :param args: additional arguments for the request
-        :return: the response from the request
-        """
-        if self.password:
-            response = request_method(*args, auth=HTTPBasicAuth(self.username, self.password), **kwargs)
-        else:
-            response = request_method(*args, **kwargs)
-        return response
+        self.grant_rights_usernames = self.prepare_rights_data(grant_rights_usernames)
+        self.grant_rights_emails = self.prepare_rights_data(grant_rights_emails)
+        self.grant_rights_orcids = self.prepare_rights_data(grant_rights_orcids)
 
     @staticmethod
     def globus_upload_wait(task_id):
@@ -185,6 +172,27 @@ class EmpiarDepositor:
                              "message: %s\n" % (retcode_tr_wait, out_tr_wait, err_tr_wait))
 
         return retcode_tr_wait
+
+    @staticmethod
+    def prepare_rights_data(data):
+        if data:
+            if data.count(':') == data.count(',') + 1:
+                data_ready = {k[0]: k[1] for k in tuple(i.split(':') for i in data.split(','))}
+                return data_ready
+        return None
+
+    def make_request(self, request_method, *args, **kwargs):
+        """
+        Make a request - either using Basic Authentication or Token
+        :param request_method: the method of request, such as requests.get or requests.post
+        :param args: additional arguments for the request
+        :return: the response from the request
+        """
+        if self.password:
+            response = request_method(*args, auth=HTTPBasicAuth(self.username, self.password), **kwargs)
+        else:
+            response = request_method(*args, **kwargs)
+        return response
 
     def create_new_deposition(self):
         """
@@ -355,33 +363,34 @@ class EmpiarDepositor:
         data_list = []
         grant_rights_successes = []
         if self.grant_rights_usernames:
-            data_list.append({'rights_mode': 'u', 'rights_dict': self.grant_rights_usernames})
+            data_list.append({'u'
+                              : self.grant_rights_usernames})
             grant_rights_successes.append(False)
         if self.grant_rights_emails:
-            data_list.append({'rights_mode': 'e', 'rights_dict': self.grant_rights_emails})
+            data_list.append({'e': self.grant_rights_emails})
             grant_rights_successes.append(False)
         if self.grant_rights_orcids:
-            data_list.append({'rights_mode': 'o', 'rights_dict': self.grant_rights_orcids})
+            data_list.append({'o': self.grant_rights_orcids})
             grant_rights_successes.append(False)
 
         for i in range(len(data_list)):
             data_dict = data_list[i]
+            data_dict["entry_id"] = self.entry_id
+            data_str = json.dumps(data_dict, ensure_ascii=False).encode('utf8')
             grant_rights_response = self.make_request(
-                requests.post, self.grant_rights_url, data={"entry_id": self.entry_id} + data_dict,
-                headers=self.auth_header, verify=self.ignore_certificate
+                requests.post, self.grant_rights_url, data=data_str,
+                headers=self.deposition_headers, verify=self.ignore_certificate
             )
             if check_json_response(grant_rights_response):
                 grant_rights_response_json = grant_rights_response.json()
                 grant_rights_successes[i] = True
-                if grant_rights_response.status_code == 200 and \
-                        'grant_rights' in grant_rights_response_json and \
-                        grant_rights_response_json['grant_rights'] == True:
-
+                if grant_rights_response.status_code == 200:
+                    print(grant_rights_response_json)
                     sys.stdout.write(f"Successfully granted rights {data_dict} EMPIAR deposition {self.entry_id}.\n")
                 else:
                     sys.stdout.write("The granting rights for EMPIAR deposition for %s was not successful. Returned "
-                                     "response: %s\nStatus code: %s\n" % (str(grant_rights_response),
-                                                                          data_dict,
+                                     "response: %s\nStatus code: %s\n" % (data_dict,
+                                                                          grant_rights_response.content,
                                                                           grant_rights_response.status_code))
 
         if False in grant_rights_successes:
