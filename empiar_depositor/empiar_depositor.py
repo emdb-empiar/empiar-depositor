@@ -361,17 +361,21 @@ class EmpiarDepositor:
         sys.stdout.write("Initiating the granting rights to the deposition...\n")
 
         data_list = []
-        grant_rights_successes = []
+        grant_rights_successes = {}
         if self.grant_rights_usernames:
-            data_list.append({'u'
-                              : self.grant_rights_usernames})
-            grant_rights_successes.append(False)
+            data_list.append({'u': self.grant_rights_usernames})
+            for username in self.grant_rights_usernames:
+                grant_rights_successes[username] = False
+
         if self.grant_rights_emails:
             data_list.append({'e': self.grant_rights_emails})
-            grant_rights_successes.append(False)
+            for email in self.grant_rights_emails:
+                grant_rights_successes[email] = False
+
         if self.grant_rights_orcids:
             data_list.append({'o': self.grant_rights_orcids})
-            grant_rights_successes.append(False)
+            for orcid in self.grant_rights_orcids:
+                grant_rights_successes[orcid] = False
 
         for i in range(len(data_list)):
             data_dict = data_list[i]
@@ -381,11 +385,14 @@ class EmpiarDepositor:
                 requests.post, self.grant_rights_url, data=data_str,
                 headers=self.deposition_headers, verify=self.ignore_certificate
             )
+
             if check_json_response(grant_rights_response):
                 grant_rights_response_json = grant_rights_response.json()
-                grant_rights_successes[i] = True
+                for user_result in grant_rights_response_json:
+                    if user_result and user_result in grant_rights_successes:
+                        grant_rights_successes[user_result] = True
+
                 if grant_rights_response.status_code == 200:
-                    print(grant_rights_response_json)
                     sys.stdout.write(f"Successfully granted rights {data_dict} EMPIAR deposition {self.entry_id}.\n")
                 else:
                     sys.stdout.write("The granting rights for EMPIAR deposition for %s was not successful. Returned "
@@ -393,7 +400,8 @@ class EmpiarDepositor:
                                                                           grant_rights_response.content,
                                                                           grant_rights_response.status_code))
 
-        if False in grant_rights_successes:
+        if False in grant_rights_successes.values()\
+                :
             return 1
 
         return 0
