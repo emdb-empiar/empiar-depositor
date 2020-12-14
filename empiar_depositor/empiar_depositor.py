@@ -19,6 +19,8 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b21, 20200429, Andrii Iudin: Added support of rights granting and of EER, PNG and JPEG image set formats and 4 BIT
+INTEGER voxel type
 1.6b20, 20200429, Andrii Iudin: Schema update - now we accept references to IDR.
 1.6b19, 20200302, Andrii Iudin: It is now possible to upload Big Data Viewer HDF5 files.
 1.6b18, 20200220, Andrii Iudin: Moved Scipion workflow outside of image sets.
@@ -100,11 +102,10 @@ class EmpiarDepositor:
 
         self.dev = dev
         if self.dev:
-            # self.server_root = "https://wwwdev.ebi.ac.uk/pdbe/emdb/external_test/master"
-            self.server_root = "https://127.0.0.1:8000"
+            self.server_root = "https://wwwdev.ebi.ac.uk/pdbe/emdb/external_test/master"
             self.upload_dir = 'tmp/andrii'
         else:
-            # self.server_root = "https://www.ebi.ac.uk/pdbe/emdb"
+            self.server_root = "https://www.ebi.ac.uk/pdbe/emdb"
             self.upload_dir = 'upload'
 
         self.deposition_url = self.server_root + "/empiar/deposition/api/deposit_entry/"
@@ -400,8 +401,9 @@ class EmpiarDepositor:
                                                                           grant_rights_response.content,
                                                                           grant_rights_response.status_code))
 
-        if False in grant_rights_successes.values()\
-                :
+
+
+        if False in grant_rights_successes.values():
             return 1
 
         return 0
@@ -507,7 +509,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b20"
+        version = "1.6b21"
 
         possible_rights_help_text = "Rights can be 1 - Owner, 2 - View only, 3 - View and Edit, 4 - View, Edit and " \
                                     "Submit. There can be only one deposition owner."
