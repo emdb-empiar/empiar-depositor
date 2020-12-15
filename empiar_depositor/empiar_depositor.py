@@ -86,7 +86,12 @@ def check_json_response(response):
     :param response: Response object of requests Python module
     :return: True if response has JSON content type, False otherwise
     """
-    return isinstance(response, Response) and response.headers.get('content-type') == 'application/json'
+    is_response = isinstance(response, Response)
+    result = is_response and \
+             hasattr(response, 'headers') and \
+             hasattr(response.headers.get, 'get') and \
+             response.headers.get('content-type') == 'application/json'
+    return result
 
 
 class EmpiarDepositor:
