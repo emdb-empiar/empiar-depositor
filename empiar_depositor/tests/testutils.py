@@ -2,6 +2,9 @@ import os
 import unittest
 import sys
 from contextlib import contextmanager
+from mock import Mock, PropertyMock
+from requests.models import Response
+from requests.structures import CaseInsensitiveDict
 
 try:
     from cStringIO import StringIO
@@ -24,3 +27,22 @@ def capture(command, *args, **kwargs):
         yield sys.stdout.read()
     finally:
         sys.stdout = out
+
+def mock_response(mocked_response=None, status_code=None, headers=None, json=None):
+    if mocked_response:
+        mocked_response.return_value = Mock(ok=True, spec=Response)
+    else:
+        mocked_response.return_value = None
+
+    if status_code:
+        mocked_response.return_value.status_code = 403
+
+    if headers:
+        type(mocked_response.return_value).headers = PropertyMock(return_value=CaseInsensitiveDict())
+        mocked_response.return_value.headers.get = Mock()
+        mocked_response.return_value.headers.get.side_effect = lambda header: headers[header]
+
+    if json:
+        mocked_response.return_value.json.return_value = json
+
+    return mocked_response
