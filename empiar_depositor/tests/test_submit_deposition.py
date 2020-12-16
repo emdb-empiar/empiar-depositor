@@ -7,7 +7,7 @@ from empiar_depositor.tests.testutils import EmpiarDepositorTest, capture, mock_
 class TestSubmitDeposition(EmpiarDepositorTest):
     @patch('empiar_depositor.empiar_depositor.requests.post')
     def test_no_response(self, mock_post):
-        mock_post = mock_response(mock_post)
+        mock_post.return_value = None
 
         emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
 
