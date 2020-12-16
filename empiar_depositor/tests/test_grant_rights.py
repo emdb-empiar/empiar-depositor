@@ -10,10 +10,24 @@ class TestGrantRights(EmpiarDepositorTest):
     grant_rights_orcids = '0000-0000-0000-0000:2,0000-0000-0000-0001:3'
 
     @patch('empiar_depositor.empiar_depositor.requests.post')
+    def test_no_entry_id_stdout(self, mock_post):
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
+
+        with capture(emp_dep.grant_rights) as output:
+            self.assertTrue('Please provide an entry ID.' in output)
+
+    @patch('empiar_depositor.empiar_depositor.requests.post')
+    def test_no_entry_id_return(self, mock_post):
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
+
+        c = emp_dep.grant_rights()
+        self.assertEqual(c, 1)
+
+    @patch('empiar_depositor.empiar_depositor.requests.post')
     def test_no_response(self, mock_post):
         mock_post.return_value = None
 
-        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "", entry_id=1)
 
         c = emp_dep.grant_rights()
         self.assertEqual(c, 1)
@@ -27,7 +41,7 @@ class TestGrantRights(EmpiarDepositorTest):
             json={'detail': 'You do not have permission to perform this action.'}
         )
 
-        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "", entry_id=1)
 
         with capture(emp_dep.grant_rights) as output:
             self.assertTrue('The granting rights for EMPIAR deposition was not successful.' in output)
@@ -41,7 +55,7 @@ class TestGrantRights(EmpiarDepositorTest):
             json={'detail': 'You do not have permission to perform this action.'}
         )
 
-        emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "", entry_id=1)
 
         c = emp_dep.grant_rights()
         self.assertEqual(c, 1)
@@ -57,7 +71,8 @@ class TestGrantRights(EmpiarDepositorTest):
             json={'detail': 'You do not have permission to perform this action.'}
         )
 
-        emp_dep = EmpiarDepositor("ABC123", self.json_path, "", grant_rights_usernames=self.grant_rights_usernames)
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "", entry_id=1,
+                                  grant_rights_usernames=self.grant_rights_usernames)
 
         with capture(emp_dep.grant_rights) as output:
             self.assertTrue('You do not have permission to perform this action.' in output and
@@ -72,7 +87,8 @@ class TestGrantRights(EmpiarDepositorTest):
             json={'detail': 'You do not have permission to perform this action.'}
         )
 
-        emp_dep = EmpiarDepositor("ABC123", self.json_path, "", grant_rights_usernames=self.grant_rights_usernames)
+        emp_dep = EmpiarDepositor("ABC123", self.json_path, "", entry_id=1,
+                                  grant_rights_usernames=self.grant_rights_usernames)
 
         c = emp_dep.grant_rights()
         self.assertEqual(c, 1)
@@ -91,6 +107,7 @@ class TestGrantRights(EmpiarDepositorTest):
         )
 
         emp_dep = EmpiarDepositor("ABC123", self.json_path, "",
+                                  entry_id = 1,
                                   grant_rights_usernames=self.grant_rights_usernames,
                                   grant_rights_emails=self.grant_rights_emails,
                                   grant_rights_orcids=self.grant_rights_orcids
