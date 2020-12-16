@@ -403,12 +403,13 @@ class EmpiarDepositor:
                 else:
                     sys.stdout.write("The granting rights for EMPIAR deposition for %s was not successful. Returned "
                                      "response: %s\nStatus code: %s\n" % (data_dict,
-                                                                          grant_rights_response.content,
+                                                                          grant_rights_response_json,
                                                                           grant_rights_response.status_code))
 
-
-
-        if False in grant_rights_successes.values():
+        if not grant_rights_successes or False in grant_rights_successes.values():
+            sys.stdout.write(f"The granting rights for EMPIAR deposition was not successful.")
+            if grant_rights_successes:
+                sys.stdout.write(f"The following user(s) did not have rights granted: {grant_rights_successes}")
             return 1
 
         return 0
