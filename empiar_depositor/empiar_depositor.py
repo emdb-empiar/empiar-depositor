@@ -89,7 +89,7 @@ def check_json_response(response):
     is_response = isinstance(response, Response)
     result = is_response and \
              hasattr(response, 'headers') and \
-             hasattr(response.headers.get, 'get') and \
+             hasattr(response.headers, 'get') and \
              response.headers.get('content-type') == 'application/json'
     return result
 
