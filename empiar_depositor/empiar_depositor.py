@@ -399,7 +399,12 @@ class EmpiarDepositor:
                             grant_rights_successes[user_result] = True
 
                     if grant_rights_response.status_code == 200:
-                        sys.stdout.write(f"Successfully granted rights {data_dict} EMPIAR deposition {self.entry_id}.\n")
+                        sys.stdout.write(
+                            "Successfully granted rights {data_dict} EMPIAR deposition {entry_id}.\n".format(
+                                data_dict=data_dict,
+                                entry_id=self.entry_id
+                            )
+                        )
                     else:
                         sys.stdout.write("The granting rights for EMPIAR deposition for %s was not successful. Returned "
                                          "response: %s\nStatus code: %s\n" % (data_dict,
@@ -407,9 +412,13 @@ class EmpiarDepositor:
                                                                               grant_rights_response.status_code))
 
             if not grant_rights_successes or False in grant_rights_successes.values():
-                sys.stdout.write(f"The granting rights for EMPIAR deposition was not successful.")
+                sys.stdout.write("The granting rights for EMPIAR deposition was not successful.")
                 if grant_rights_successes:
-                    sys.stdout.write(f"The following user(s) did not have rights granted: {grant_rights_successes}")
+                    sys.stdout.write(
+                        "The following user(s) did not have rights granted: {grant_rights_successes}".format(
+                            grant_rights_successes=grant_rights_successes
+                        )
+                    )
                 return 1
         else:
             sys.stdout.write("Please provide an entry ID.")
