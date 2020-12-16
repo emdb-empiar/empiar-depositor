@@ -1,7 +1,6 @@
 import unittest
 from empiar_depositor.empiar_depositor import EmpiarDepositor
-from mock import Mock, patch
-from requests.models import Response
+from mock import patch
 from empiar_depositor.tests.testutils import EmpiarDepositorTest, capture, mock_response
 
 
