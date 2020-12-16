@@ -35,7 +35,7 @@ def mock_response(mocked_response=None, status_code=None, headers=None, json=Non
         mocked_response.return_value = None
 
     if status_code:
-        mocked_response.return_value.status_code = 403
+        mocked_response.return_value.status_code = status_code
 
     if headers:
         type(mocked_response.return_value).headers = PropertyMock(return_value=CaseInsensitiveDict())
