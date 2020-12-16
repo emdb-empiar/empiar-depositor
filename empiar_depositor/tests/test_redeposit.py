@@ -1,14 +1,13 @@
 import unittest
 from empiar_depositor.empiar_depositor import EmpiarDepositor
-from mock import Mock, patch
-from requests.models import Response
+from mock import patch
 from empiar_depositor.tests.testutils import EmpiarDepositorTest, capture, mock_response
 
 
 class TestCreateNewDeposition(EmpiarDepositorTest):
     @patch('empiar_depositor.empiar_depositor.requests.put')
     def test_no_response(self, mock_put):
-        mock_put = mock_response(mock_put)
+        mock_put.return_value = None
 
         emp_dep = EmpiarDepositor("ABC123", self.json_path, "")
 
