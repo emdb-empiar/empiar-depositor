@@ -365,51 +365,54 @@ class EmpiarDepositor:
         Grant rights to users
         """
         sys.stdout.write("Initiating the granting rights to the deposition...\n")
+        if self.entry_id:
+            data_list = []
+            grant_rights_successes = {}
+            if self.grant_rights_usernames:
+                data_list.append({'u': self.grant_rights_usernames})
+                for username in self.grant_rights_usernames:
+                    grant_rights_successes[username] = False
 
-        data_list = []
-        grant_rights_successes = {}
-        if self.grant_rights_usernames:
-            data_list.append({'u': self.grant_rights_usernames})
-            for username in self.grant_rights_usernames:
-                grant_rights_successes[username] = False
+            if self.grant_rights_emails:
+                data_list.append({'e': self.grant_rights_emails})
+                for email in self.grant_rights_emails:
+                    grant_rights_successes[email] = False
 
-        if self.grant_rights_emails:
-            data_list.append({'e': self.grant_rights_emails})
-            for email in self.grant_rights_emails:
-                grant_rights_successes[email] = False
+            if self.grant_rights_orcids:
+                data_list.append({'o': self.grant_rights_orcids})
+                for orcid in self.grant_rights_orcids:
+                    grant_rights_successes[orcid] = False
 
-        if self.grant_rights_orcids:
-            data_list.append({'o': self.grant_rights_orcids})
-            for orcid in self.grant_rights_orcids:
-                grant_rights_successes[orcid] = False
+            for i in range(len(data_list)):
+                data_dict = data_list[i]
+                data_dict["entry_id"] = self.entry_id
+                data_str = json.dumps(data_dict, ensure_ascii=False).encode('utf8')
+                grant_rights_response = self.make_request(
+                    requests.post, self.grant_rights_url, data=data_str,
+                    headers=self.deposition_headers, verify=self.ignore_certificate
+                )
 
-        for i in range(len(data_list)):
-            data_dict = data_list[i]
-            data_dict["entry_id"] = self.entry_id
-            data_str = json.dumps(data_dict, ensure_ascii=False).encode('utf8')
-            grant_rights_response = self.make_request(
-                requests.post, self.grant_rights_url, data=data_str,
-                headers=self.deposition_headers, verify=self.ignore_certificate
-            )
+                if check_json_response(grant_rights_response):
+                    grant_rights_response_json = grant_rights_response.json()
+                    for user_result in grant_rights_response_json:
+                        if user_result and user_result in grant_rights_successes:
+                            grant_rights_successes[user_result] = True
 
-            if check_json_response(grant_rights_response):
-                grant_rights_response_json = grant_rights_response.json()
-                for user_result in grant_rights_response_json:
-                    if user_result and user_result in grant_rights_successes:
-                        grant_rights_successes[user_result] = True
+                    if grant_rights_response.status_code == 200:
+                        sys.stdout.write(f"Successfully granted rights {data_dict} EMPIAR deposition {self.entry_id}.\n")
+                    else:
+                        sys.stdout.write("The granting rights for EMPIAR deposition for %s was not successful. Returned "
+                                         "response: %s\nStatus code: %s\n" % (data_dict,
+                                                                              grant_rights_response_json,
+                                                                              grant_rights_response.status_code))
 
-                if grant_rights_response.status_code == 200:
-                    sys.stdout.write(f"Successfully granted rights {data_dict} EMPIAR deposition {self.entry_id}.\n")
-                else:
-                    sys.stdout.write("The granting rights for EMPIAR deposition for %s was not successful. Returned "
-                                     "response: %s\nStatus code: %s\n" % (data_dict,
-                                                                          grant_rights_response_json,
-                                                                          grant_rights_response.status_code))
-
-        if not grant_rights_successes or False in grant_rights_successes.values():
-            sys.stdout.write(f"The granting rights for EMPIAR deposition was not successful.")
-            if grant_rights_successes:
-                sys.stdout.write(f"The following user(s) did not have rights granted: {grant_rights_successes}")
+            if not grant_rights_successes or False in grant_rights_successes.values():
+                sys.stdout.write(f"The granting rights for EMPIAR deposition was not successful.")
+                if grant_rights_successes:
+                    sys.stdout.write(f"The following user(s) did not have rights granted: {grant_rights_successes}")
+                return 1
+        else:
+            sys.stdout.write("Please provide an entry ID.")
             return 1
 
         return 0
