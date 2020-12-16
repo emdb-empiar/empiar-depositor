@@ -29,10 +29,7 @@ def capture(command, *args, **kwargs):
         sys.stdout = out
 
 def mock_response(mocked_response=None, status_code=None, headers=None, json=None):
-    if mocked_response:
-        mocked_response.return_value = Mock(ok=True, spec=Response)
-    else:
-        mocked_response.return_value = None
+    mocked_response.return_value = Mock(ok=True, spec=Response)
 
     if status_code:
         mocked_response.return_value.status_code = status_code
