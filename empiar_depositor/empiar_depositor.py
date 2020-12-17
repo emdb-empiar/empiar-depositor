@@ -19,7 +19,8 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
-1.6b21, 20200429, Andrii Iudin: Added support of rights granting and of EER, PNG and JPEG image set formats and 4 BIT
+1.6b22, 20201217, Andrii Iudin: Updated documentation
+1.6b21, 20201216, Andrii Iudin: Added support of rights granting and of EER, PNG and JPEG image set formats and 4 BIT
 INTEGER voxel type
 1.6b20, 20200429, Andrii Iudin: Schema update - now we accept references to IDR.
 1.6b19, 20200302, Andrii Iudin: It is now possible to upload Big Data Viewer HDF5 files.
@@ -181,6 +182,13 @@ class EmpiarDepositor:
 
     @staticmethod
     def prepare_rights_data(data):
+        """
+        Turn the comma separated list of user-specific fields and rights into a dictionary
+        :param data: a string that contains a comma separated list of colon separated user-specific fields and rights,
+        for example, 'usernam1:2,username2:1'
+        :return: a dictionary with user-specific fields as keys and corresponding rights as values, for example,
+        {'username1': 2, 'username2': 1}
+        """
         if data:
             if data.count(':') == data.count(',') + 1:
                 data_ready = {k[0]: k[1] for k in tuple(i.split(':') for i in data.split(','))}
@@ -527,7 +535,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b21"
+        version = "1.6b22"
 
         possible_rights_help_text = "Rights can be 1 - Owner, 2 - View only, 3 - View and Edit, 4 - View, Edit and " \
                                     "Submit. There can be only one deposition owner."
@@ -563,14 +571,14 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                                  "related EMDB entry will be used.")
 
         parser.add_argument("-gu", "--grant-rights-usernames", action="store",
-                            help="Comma separated list of usernames and rights in format <username>:<rights>. " +
-                                 possible_rights_help_text)
+                            help="Grant rights. Provide a comma separated list of usernames and rights in format "
+                                 "<username>:<rights>. " + possible_rights_help_text)
         parser.add_argument("-ge", "--grant-rights-emails", action="store",
-                            help="Comma separated list of emails addresses and rights in format "
-                                 "<email_address>:<rights>. " + possible_rights_help_text)
+                            help="Grant rights. Provide a comma separated list of emails addresses and rights in "
+                                 "format <email_address>:<rights>. " + possible_rights_help_text)
         parser.add_argument("-go", "--grant-rights-orcids", action="store",
-                            help="Comma separated list of ORCiDs and rights in format <orcid>:<rights>. " +
-                                 possible_rights_help_text)
+                            help="Grant rights. Provide a comma separated list of ORCiDs and rights in format "
+                                 "<orcid>:<rights>. " + possible_rights_help_text)
 
         parser.add_argument("-r", "--resume", action="store", metavar=("ENTRY_ID", "ENTRY_DIR"),
                             help="Resume Aspera upload. The entry has to be successfully created beforehand as "
