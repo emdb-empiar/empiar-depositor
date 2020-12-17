@@ -13,6 +13,9 @@ except ImportError:
 
 
 class EmpiarDepositorTest(unittest.TestCase):
+    """
+    Test class for EMPIAR depositions
+    """
     current_dir = os.path.dirname(os.path.abspath(__file__))
     json_path = os.path.join(current_dir, "deposition_json/working_example.json")
     thumbnail_path = os.path.join(current_dir, "img/entry_thumbnail.gif")
@@ -20,6 +23,13 @@ class EmpiarDepositorTest(unittest.TestCase):
 
 @contextmanager
 def capture(command, *args, **kwargs):
+    """
+    Capture command to assess its output
+    :param command: the command to be captured
+    :param args: arguments for the command
+    :param kwargs: keyword arguments for the command
+    :return: the output of the command
+    """
     out, sys.stdout = sys.stdout, StringIO()
     try:
         command(*args, **kwargs)
@@ -28,7 +38,16 @@ def capture(command, *args, **kwargs):
     finally:
         sys.stdout = out
 
+
 def mock_response(mocked_response=None, status_code=None, headers=None, json=None):
+    """
+    Mock a response by assigning attributes and methods return values
+    :param mocked_response: response that is to be mocked
+    :param status_code: mock status code of the response
+    :param headers: mock headers of the response
+    :param json: mock returned JSON from the response
+    :return: Mocked response enhanced with provided attributes and methods return values
+    """
     mocked_response.return_value = Mock(ok=True, spec=Response)
 
     if status_code:
