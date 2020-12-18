@@ -39,7 +39,7 @@ class TestMain(EmpiarDepositorTest):
         mock_isfile.return_value = True
 
         mock_popen.return_value.communicate.return_value = (b'Usage: ascp', b'')
-        mock_popen.return_value.returncode = 112
+        mock_popen.return_value.returncode =  112
 
         with capture(empiar_depositor_main, ["ABC123", self.json_path,
                                              "-aascp.exe", "img/entry_thumbnail.gif",
