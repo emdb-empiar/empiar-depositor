@@ -354,8 +354,18 @@ class EmpiarDepositor:
                                                files=files, headers=self.auth_header, verify=self.ignore_certificate)
         f.close()
 
+        if check_json_response(thumbnail_response):
+            thumbnail_response_json = thumbnail_response.json()
 
-        sys.stdout.write("The  upload of the thumbnail was not successful.\n")
+            if 'thumbnail_upload' in thumbnail_response_json and thumbnail_response_json['thumbnail_upload'] is True:
+                sys.stdout.write("Successfully uploaded the thumbnail for EMPIAR deposition.\n")
+                return 0
+            else:
+                sys.stdout.write("The upload of the thumbnail for EMPIAR deposition was not successful. Returned "
+                                 "response: %s\nStatus code: %s\n" % (str(thumbnail_response_json),
+                                                                      thumbnail_response.status_code))
+
+        sys.stdout.write("The upload of the thumbnail was not successful.\n")
         return 1
 
     def grant_rights(self):
