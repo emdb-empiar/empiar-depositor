@@ -640,7 +640,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             if args.globus:
                 sys.stdout.write("Will try using Globus instead\n")
             else:
-                return 1
+                return  1
 
         globus_data = {}
         endpoint_id = None
