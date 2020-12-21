@@ -1252,7 +1252,7 @@
       }
     },
     "citation": {
-      "$id": "/properties/citation",
+      "$id": "/proper ties/citation",
       "type": "array",
       "minItems": 1,
       "items": {
