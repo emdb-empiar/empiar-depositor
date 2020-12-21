@@ -355,7 +355,7 @@ class EmpiarDepositor:
         f.close()
 
 
-        sys.stdout.write("The upload of the thumbnail was not successful.\n")
+        sys.stdout.write("The  upload of the thumbnail was not successful.\n")
         return 1
 
     def grant_rights(self):
