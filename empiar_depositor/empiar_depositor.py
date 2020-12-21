@@ -644,7 +644,32 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
 
         globus_data = {}
         endpoint_id = None
+        if args.globus:
+            # Log in to Globus
+            sys.stdout.write("Logging in to Globus...\n")
+            command_login_str = 'globus login'
+            if args.globus_force_login:
+                command_login_str += ' --force'
+            command_login = [command_login_str]
 
+            out_login, err_login, retcode_login = run_shell_command(command_login)
+            success_login = b'You have successfully logged in to the Globus CLI' in out_login or \
+                            b'You are already logged in' in out_login
+            if not success_login or err_login or retcode_login != 0:
+                sys.stdout.write(
+                    "Error while logging in into Globus. Return code: %s.\nOutput:%s\nError message: %s\n" %
+                    (retcode_login, out_login, err_login))
+                return 1
+            sys.stdout.write("Successfully logged in\n")
+
+            # Search for the source endpoint to get its ID
+            command_es = ['globus endpoint search %s --filter-scope my-endpoints --format json' % args.globus]
+            out_es, err_es, retcode_es = run_shell_command(command_es)
+
+            if err_es or retcode_es != 0:
+                sys.stdout.write("Error while searching for an endpoint. Return code: %s.\nOutput:%s\nError message: "
+                                 "%s\n" % (retcode_es, out_es, err_es))
+                return 1
 
             try:
                 es_json = json.loads(out_es)
