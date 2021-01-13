@@ -103,12 +103,14 @@ class EmpiarDepositor:
 
     def __init__(self, empiar_token, json_input, data, ascp=None, globus=None, globus_data=None,
                  globus_force_login=False, ignore_certificate=False, entry_thumbnail=None, entry_id=None,
-                 entry_directory=None, stop_submit=False, dev=False, password=None, output_id_dir=False,
-                 grant_rights_usernames=None, grant_rights_emails=None, grant_rights_orcids=None):
+                 entry_directory=None, stop_submit=False, dev=False, dev_local=False, password=None,
+                 output_id_dir=False, grant_rights_usernames=None, grant_rights_emails=None, grant_rights_orcids=None):
 
-        self.dev = dev
-        if self.dev:
+        if dev:
             self.server_root = "https://wwwdev.ebi.ac.uk/pdbe/emdb/external_test/master"
+            self.upload_dir = 'tmp/andrii'
+        elif dev_local:
+            self.server_root = "https://127.0.0.1:8000"
             self.upload_dir = 'tmp/andrii'
         else:
             self.server_root = "https://www.ebi.ac.uk/pdbe/emdb"
@@ -495,6 +497,8 @@ class EmpiarDepositor:
 
                 if not grant_rights_exist or (grant_rights_exist and grant_rights_result == 0):
                     if self.stop_submit:
+                        if self.output_id_dir:
+                            return self.entry_id, self.entry_directory
                         return upload_code
                     else:
                         submit_result = self.submit_deposition()
@@ -591,6 +595,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
         parser.add_argument("-v", "--version", action="version", version=version, help="Show program's version number "
                                                                                        "and exit.")
         parser.add_argument("-d", "--development", action="store_true", default=False, help=argparse.SUPPRESS)
+        parser.add_argument("-dl", "--development-local", action="store_true", default=False, help=argparse.SUPPRESS)
         parser.add_argument("-o", "--output-id-dir", action="store_true", default=False, help=argparse.SUPPRESS)
 
         if args is None:
@@ -801,6 +806,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             entry_directory=entry_directory,
             stop_submit=args.stop_submit,
             dev=args.development,
+            dev_local=args.development_local,
             password=args.password,
             output_id_dir=args.output_id_dir,
             grant_rights_usernames=args.grant_rights_usernames,
