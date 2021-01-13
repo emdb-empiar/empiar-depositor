@@ -19,6 +19,8 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b23, 20210113, Andrii Iudin: It is now possible to get entry id and directory as an output on successful deposition
+without submitting the entry
 1.6b22, 20201217, Andrii Iudin: Updated documentation
 1.6b21, 20201216, Andrii Iudin: Added support of rights granting and of EER, PNG and JPEG image set formats and 4 BIT
 INTEGER voxel type
@@ -539,7 +541,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b22"
+        version = "1.6b23"
 
         possible_rights_help_text = "Rights can be 1 - Owner, 2 - View only, 3 - View and Edit, 4 - View, Edit and " \
                                     "Submit. There can be only one deposition owner."
