@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b24, 20210729, Andrii Iudin: Switched to top url
 1.6b23, 20210113, Andrii Iudin: It is now possible to get entry id and directory as an output on successful deposition
 without submitting the entry
 1.6b22, 20201217, Andrii Iudin: Updated documentation
@@ -115,7 +116,7 @@ class EmpiarDepositor:
             self.server_root = "https://127.0.0.1:8000"
             self.upload_dir = 'tmp/andrii'
         else:
-            self.server_root = "https://www.ebi.ac.uk/pdbe/emdb"
+            self.server_root = "https://www.ebi.ac.uk"
             self.upload_dir = 'upload'
 
         self.deposition_url = self.server_root + "/empiar/deposition/api/deposit_entry/"
@@ -541,7 +542,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b23"
+        version = "1.6b24"
 
         possible_rights_help_text = "Rights can be 1 - Owner, 2 - View only, 3 - View and Edit, 4 - View, Edit and " \
                                     "Submit. There can be only one deposition owner."
