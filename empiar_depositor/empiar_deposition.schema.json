@@ -2,10 +2,6 @@
   "$id": "https://empiar.org/empiar_deposition.schema.json#",
   "type": "object",
   "definitions": {},
-  "self": {
-    "format": "jsonschema",
-    "version": "1-0-0"
-  },
   "$schema": "http://json-schema.org/schema#",
   "properties": {
     "title": {
@@ -117,6 +113,57 @@
       },
       "default": [],
       "description": "Array of references to IDR"
+    },
+    "empiar_references": {
+      "$id": "/properties/empiar_references",
+      "type": "array",
+      "items": {
+        "$id": "/properties/empiar_references/items",
+        "type": "object",
+        "properties": {
+          "name": {
+            "$id": "/properties/empiar_references/items/properties/name",
+            "type": "string",
+            "pattern": "^EMPIAR-\\d+$",
+            "title": "The Name Schema ",
+            "examples": [
+              "EMPIAR-10002"
+            ]
+          }
+        }
+      },
+      "default": [],
+      "description": "Array of references to EMPIAR"
+    },
+    "workflows": {
+      "$id": "/properties/workflows",
+      "type": "array",
+      "items": {
+        "$id": "/properties/workflows/items",
+        "type": "object",
+        "properties": {
+          "url": {
+            "$id": "/properties/workflows/items/properties/url",
+            "type": "string",
+            "pattern": "^https:\/\/.+$",
+            "title": "The Url Schema ",
+            "examples": [
+              "https://doi.org/10.48546/workflowhub.workflow.201.1"
+            ]
+          },
+          "type": {
+            "$id": "properties/workflows/items/properties/type",
+            "type": "integer",
+            "title": "The Type Schema ",
+            "description": "Currently supported value: 1 - WorkflowHub.",
+            "enum": [
+              1
+            ]
+          }
+        }
+      },
+      "default": [],
+      "description": "Array of workflows"
     },
     "authors": {
       "$id": "/properties/authors",
@@ -589,7 +636,7 @@
       "type": "array",
       "minItems": 1,
       "items": {
-        "$id": "/properties/corresponding_author",
+        "$id": "/properties/corresponding_authors",
         "type": "object",
         "properties": {
           "author_orcid": {
@@ -1755,7 +1802,7 @@
               "string"
             ],
             "title": "The Details Schema ",
-            "maxlength": 65535,
+            "maxLength": 65535,
             "default": null,
             "examples": [
               "Three-dimensional in situ structure of a T4bP machine in its piliated and non-piliated states constructed from its tilt series."
