@@ -7,6 +7,12 @@
       "name": "EMD-8000"
     }
   ],
+  "workflows": [
+    {
+      "url": "https://doi.org/10.48546/workflowhub.workflow.201.1",
+      "type": 1
+    }
+  ],
   "authors": [
     {
       "name": "('Smith', 'JW')",
