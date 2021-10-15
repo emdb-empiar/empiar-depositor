@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b25, 20211015, Andrii Iudin: Added an option to specify workflows, JSON schema updated to the latest draft
 1.6b24, 20210729, Andrii Iudin: Switched to top url
 1.6b23, 20210113, Andrii Iudin: It is now possible to get entry id and directory as an output on successful deposition
 without submitting the entry
@@ -542,7 +543,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b24"
+        version = "1.6b25"
 
         possible_rights_help_text = "Rights can be 1 - Owner, 2 - View only, 3 - View and Edit, 4 - View, Edit and " \
                                     "Submit. There can be only one deposition owner."
