@@ -522,7 +522,7 @@ def main(args=None):
         usage = """
     To deposit the data into EMPIAR please follow these steps:
     1) Create a JSON file according to the structure provided in the example (see https://empiar.org/\
-deposition/json_submission). 
+deposition/json_submission).
     2) Download and install ascp tool (https://downloads.asperasoft.com/download_connect/) and/or install globus-cli 
 tool (pip install globus-cli). Globus can be used as a separate upload option or as a fallback if Aspera fails.
     3) Set the environmental variable for EMPIAR transfer password to the one that EMPIAR team has provided you with. 
