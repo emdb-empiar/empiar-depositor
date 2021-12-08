@@ -57,8 +57,8 @@
       "country": "US"
     }
   ],
-  "scipion": {
-    "scipion_workflow": "data/workflow.json"
+  "workflow_file": {
+    "path": "data/workflow.json"
   },
   "imagesets": [
     {
