@@ -22,10 +22,10 @@ How to use
 
 Please follow these steps:
 
-1. Create a JSON file according to the `schema <empiar_depositor/empiar_deposition.schema.json>`_. An
-`example <empiar_depositor/tests/deposition_json/working_example.json>`_ of such a file.
+1. Create a JSON file according to the `schema <https://github.com/emdb-empiar/empiar-depositor/blob/master/empiar_depositor/empiar_deposition.schema.json>`_. An
+`example <https://github.com/emdb-empiar/empiar-depositor/blob/master/empiar_depositor/tests/deposition_json/working_example.json>`_ of such a file.
 
-2. Download and install `ascp tool <http://downloads.asperasoft.com/connect2/>`_ and/or install globus-cli (supported
+2. Download and install `ascp tool <https://www.ibm.com/aspera/connect/>`_ and/or install globus-cli (supported
 version 1.7.0) with
 
    .. code:: bash
