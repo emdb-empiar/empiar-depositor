@@ -1047,27 +1047,27 @@
       },
       "description": "Array of principal investigators."
     },
-    "scipion": {
-      "$id": "/properties/scipion",
+    "workflow_file": {
+      "$id": "/properties/workflow_file",
       "type": "object",
       "properties": {
-        "scipion_workflow": {
-          "$id": "/properties/scipion/items/properties/scipion_workflow",
+        "path": {
+          "$id": "/properties/workflow_file/items/properties/path",
           "type": [
             "null",
             "string"
           ],
-          "title": "The Scipion_workflow Schema ",
+          "title": "The relative path to the workflow file",
           "default": null,
           "maxLength": 200,
-          "description": "Scipion workflow file provides a great way to reproduce previous processing steps and is particularly useful to repeat steps for similar samples or to share knowledge between users.",
+          "description": "A workflow file, for example, a Scipion (http://scipion.i2pc.es) workflow provides a great way to reproduce previous processing steps and is particularly useful to repeat steps for similar samples or to share knowledge between users.",
           "examples": [
             "data/workflow.json"
           ]
         }
       },
       "required": [
-        "scipion_workflow"
+        "path"
       ]
     },
     "imagesets": {
