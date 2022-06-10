@@ -152,7 +152,7 @@
             ]
           },
           "type": {
-            "$id": "properties/workflows/items/properties/type",
+            "$id": "/properties/workflows/items/properties/type",
             "type": "integer",
             "title": "The Type Schema ",
             "description": "Currently supported value: 1 - WorkflowHub.",
@@ -226,7 +226,7 @@
       "type": "object",
       "properties": {
         "author_orcid": {
-          "$id": "/properties/corresponding_author/items/properties/author_orcid",
+          "$id": "/properties/corresponding_author/properties/author_orcid",
           "type": [
             "null",
             "string"
@@ -636,7 +636,7 @@
       "type": "array",
       "minItems": 1,
       "items": {
-        "$id": "/properties/corresponding_authors",
+        "$id": "/properties/principal_investigator/items",
         "type": "object",
         "properties": {
           "author_orcid": {
@@ -653,7 +653,7 @@
             ]
           },
           "first_name": {
-            "$id": "/properties/principal_investigator/properties/first_name",
+            "$id": "/properties/principal_investigator/items/properties/first_name",
             "type": "string",
             "pattern": "^[^0-9!\"£$%^&*()]+$",
             "title": "The First_name Schema ",
@@ -663,7 +663,7 @@
             ]
           },
           "middle_name": {
-            "$id": "/properties/principal_investigator/properties/middle_name",
+            "$id": "/properties/principal_investigator/items/properties/middle_name",
             "type": [
               "null",
               "string"
@@ -677,7 +677,7 @@
             ]
           },
           "last_name": {
-            "$id": "/properties/principal_investigator/properties/last_name",
+            "$id": "/properties/principal_investigator/items/properties/last_name",
             "type": "string",
             "pattern": "^[^0-9!\"£$%^&*()]+$",
             "title": "The Last_name Schema ",
@@ -687,7 +687,7 @@
             ]
           },
           "organization": {
-            "$id": "/properties/principal_investigator/properties/organization",
+            "$id": "/properties/principal_investigator/items/properties/organization",
             "type": "string",
             "title": "The Organization Schema ",
             "maxLength": 255,
@@ -696,7 +696,7 @@
             ]
           },
           "street": {
-            "$id": "/properties/principal_investigator/properties/street",
+            "$id": "/properties/principal_investigator/items/properties/street",
             "type": [
               "null",
               "string"
@@ -709,7 +709,7 @@
             ]
           },
           "town_or_city": {
-            "$id": "/properties/principal_investigator/properties/town_or_city",
+            "$id": "/properties/principal_investigator/items/properties/town_or_city",
             "type": "string",
             "title": "The Town_or_city Schema ",
             "maxLength": 60,
@@ -719,7 +719,7 @@
             ]
           },
           "state_or_province": {
-            "$id": "/properties/principal_investigator/properties/state_or_province",
+            "$id": "/properties/principal_investigator/items/properties/state_or_province",
             "type": [
               "null",
               "string"
@@ -732,7 +732,7 @@
             ]
           },
           "post_or_zip": {
-            "$id": "/properties/principal_investigator/properties/post_or_zip",
+            "$id": "/properties/principal_investigator/items/properties/post_or_zip",
             "type": "string",
             "title": "The Post_or_zip Schema ",
             "maxLength": 60,
@@ -742,7 +742,7 @@
             ]
           },
           "telephone": {
-            "$id": "/properties/principal_investigator/properties/telephone",
+            "$id": "/properties/principal_investigator/items/properties/telephone",
             "type": [
               "null",
               "string"
@@ -755,7 +755,7 @@
             ]
           },
           "fax": {
-            "$id": "/properties/principal_investigator/properties/fax",
+            "$id": "/properties/principal_investigator/items/properties/fax",
             "type": [
               "null",
               "string"
@@ -768,7 +768,7 @@
             ]
           },
           "email": {
-            "$id": "/properties/principal_investigator/properties/email",
+            "$id": "/properties/principal_investigator/items/properties/email",
             "type": "string",
             "format": "email",
             "title": "The Email Schema ",
@@ -777,7 +777,7 @@
             ]
           },
           "country": {
-            "$id": "/properties/principal_investigator/properties/country",
+            "$id": "/properties/principal_investigator/items/properties/country",
             "type": "string",
             "title": "The Country Schema ",
             "enum": [
