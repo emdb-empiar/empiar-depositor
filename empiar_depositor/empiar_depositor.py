@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b28, 20211208, Kiyo Tsunezumi: Fix of the error in $id
 1.6b27, 20211208, Andrii Iudin: Switched Scipion workflow field to a generic workflow file
 1.6b26, 20211208, Andrii Iudin: Fix of links in README.rst
 1.6b25, 20211015, Andrii Iudin: Added an option to specify workflows, JSON schema updated to the latest draft
@@ -545,7 +546,7 @@ sition_1.json ~/Downloads/micrographs
     empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
 ments/empiar_deposition_1.json ~/Downloads/micrographs
                 """
-        version = "1.6b27"
+        version = "1.6b28"
 
         possible_rights_help_text = "Rights can be 1 - Owner, 2 - View only, 3 - View and Edit, 4 - View, Edit and " \
                                     "Submit. There can be only one deposition owner."
