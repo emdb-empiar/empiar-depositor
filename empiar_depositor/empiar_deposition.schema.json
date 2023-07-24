@@ -43,10 +43,24 @@
         6,
         7,
         8,
-        9
+        9,
+        11,
+        12,
+        13
       ],
       "default": 3,
-      "description": "Type of the EMPIAR entry: 1 - image data collected using soft x-ray tomography, 2 - simulated data, for instance, created using InSilicoTEM (note: we only accept simulated data in special circumstances such as test/training sets for validation challenges: you need to ask for and be granted permission PRIOR to deposition otherwise the dataset will be rejected), 3 - raw image data relating to structures deposited to the Electron Microscopy Data Bank, 4 - image data collected using serial block-face scanning electron microscopy (like the Gatan 3View system), 5 - image data collected using focused ion beam scanning electron microscopy, 6 - integrative hybrid modelling data, 7 - correlative light-electron microscopy, 8 - correlative light X-ray microscopy, 9 - microcrystal electron diffraction",
+      "description": "Type of the EMPIAR entry: 1 - image data collected using soft x-ray tomography, 2 - simulated data, for instance, created using InSilicoTEM (note: we only accept simulated data in special circumstances such as test/training sets for validation challenges: you need to ask for and be granted permission PRIOR to deposition otherwise the dataset will be rejected), 3 - raw image data relating to structures deposited to the Electron Microscopy Data Bank, 4 - image data collected using serial block-face scanning electron microscopy (like the Gatan 3View system), 5 - image data collected using focused ion beam scanning electron microscopy, 6 - integrative hybrid modelling data, 7 - correlative light-electron microscopy, 8 - correlative light X-ray microscopy, 9 - microcrystal electron diffraction, 11 - ATUM-SEM, 12 - Hard X-ray/X-ray microCT, 13 - ssET",
+      "examples": [
+        3
+      ]
+    },
+    "scale": {
+      "$id": "/properties/scale",
+      "type": "string",
+      "title": "The Scale Schema ",
+      "pattern": "^[1-5]$",
+      "default": 3,
+      "description": "The scale of the experiment: 1 - molecule, 2 - virus, 3 - cell, 4 - tissue, 5 - organism",
       "examples": [
         3
       ]
@@ -1102,9 +1116,9 @@
           "category": {
             "$id": "/properties/imagesets/items/properties/category",
             "type": "string",
-            "pattern": "^(\\('T([2-9]|10?)', ''\\))|\\('OT', '[^\\0]+'\\)$",
+            "pattern": "^(\\('T(?:1[0-4]|[1-9])', ''\\))|\\('OT', '[^\\0]+'\\)$",
             "title": "The Category Schema ",
-            "description": "'T1' corresponds to 'micrographs - single frame', 'T2' - 'micrographs - multiframe', 'T3' - 'micrographs - focal pairs - unprocessed', 'T4' - 'micrographs - focal pairs - contrast inverted', 'T5' - 'picked particles - single frame - unprocessed', 'T6' - 'picked particles - multiframe - unprocessed', 'T7' - 'picked particles - single frame - processed', 'T8' - 'picked particles - multiframe - processed', 'T9' - 'tilt series', 'T10' - 'class averages', 'OT' - other, in this case please specify the category in the second element.",
+            "description": "'T1' corresponds to 'micrographs - single frame', 'T2' - 'micrographs - multiframe', 'T3' - 'micrographs - focal pairs - unprocessed', 'T4' - 'micrographs - focal pairs - contrast inverted', 'T5' - 'picked particles - single frame - unprocessed', 'T6' - 'picked particles - multiframe - unprocessed', 'T7' - 'picked particles - single frame - processed', 'T8' - 'picked particles - multiframe - processed', 'T9' - 'tilt series', 'T10' - 'class averages', T11' - 'stitched maps', 'T12' - 'diffraction images', 'T13' - 'reconstructed volumes', 'T14' - 'subtomograms', 'OT' - other, in this case please specify the category in the second element.",
             "examples": [
               "('T9', '')",
               "('OT', 'new category name')"
@@ -1113,9 +1127,9 @@
           "header_format": {
             "$id": "/properties/imagesets/items/properties/header_format",
             "type": "string",
-            "pattern": "^(\\('T([2-9]|10?)', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
+            "pattern": "^(\\('T(?:1[0-4]|[1-9])', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
             "title": "The Header_format Schema ",
-            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4', 'T7' - 'SPIDER', 'T8' - 'XML', 'T9' - 'EER', 'T10' - 'PNG', 'T11' - 'JPEG', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
+            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4', 'T7' - 'SPIDER', 'T8' - 'XML', 'T9' - 'EER', 'T10' - 'PNG', 'T11' - 'JPEG', 'T12' - 'SMV', 'T13' - 'EM', 'T14' - 'TPX3', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
             "examples": [
               "('T1', '')",
               "('OT', 'NEW HEADER FORMAT')"
@@ -1124,9 +1138,9 @@
           "data_format": {
             "$id": "/properties/imagesets/items/properties/data_format",
             "type": "string",
-            "pattern": "^(\\('T([2-9]|10?)', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
+            "pattern": "^(\\('T(?:1[0-4]|[1-9])', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
             "title": "The Data_format Schema ",
-            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4','T7' - 'SPIDER', 'T8' - 'BIG DATA VIEWER HDF5', 'T9' - 'EER', 'T10' - 'PNG', 'T11' - 'JPEG', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
+            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4','T7' - 'SPIDER', 'T8' - 'BIG DATA VIEWER HDF5', 'T9' - 'EER', 'T10' - 'PNG', 'T11' - 'JPEG', 'T12' - 'SMV', 'T13' - 'EM', 'T14' - 'TPX3', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
             "examples": [
               "('T1', '')",
               "('OT', 'NEW DATA FORMAT')"
@@ -1175,7 +1189,7 @@
           "voxel_type": {
             "$id": "/properties/imagesets/items/properties/voxel_type",
             "type": "string",
-            "pattern": "^(\\('T([2-9]|10?)', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
+            "pattern": "^(\\('T([1-9])', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
             "title": "The Voxel_type Schema ",
             "description": "'T1' corresponds to 'UNSIGNED BYTE', 'T2' - 'SIGNED BYTE', 'T3' - 'UNSIGNED 16 BIT INTEGER', 'T4' - 'SIGNED 16 BIT INTEGER', 'T5' - 'UNSIGNED 32 BIT INTEGER', 'T6' - 'SIGNED 32 BIT INTEGER', 'T7' - '32 BIT FLOAT', 'T8' - 'BIT', 'T9' - '4 BIT INTEGER', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
             "examples": [
@@ -1409,6 +1423,16 @@
             "title": "The Published Schema ",
             "default": false,
             "description": "Set to true if citation has been published, false otherwise.",
+            "examples": [
+              true
+            ]
+          },
+          "published": {
+            "$id": "/properties/citation/items/properties/preprint",
+            "type": "boolean",
+            "title": "The Preprint Schema ",
+            "default": false,
+            "description": "Set to true if citation is a preprint, false otherwise.",
             "examples": [
               true
             ]

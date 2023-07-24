@@ -117,7 +117,7 @@ class EmpiarDepositor:
             self.server_root = "https://wwwdev.ebi.ac.uk/pdbe/emdb/external_test/master"
             self.upload_dir = 'tmp/andrii'
         elif dev_local:
-            self.server_root = "https://127.0.0.1:8000"
+            self.server_root = "https://127.0.0.1:8001"
             self.upload_dir = 'tmp/andrii'
         else:
             self.server_root = "https://www.ebi.ac.uk"
