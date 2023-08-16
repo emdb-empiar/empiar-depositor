@@ -2,6 +2,7 @@
   "title": "Vibrio cholerae toxin-coregulated pilus machine",
   "release_date": "RE",
   "experiment_type": 3,
+  "scale": "1",
   "cross_references": [
     {
       "name": "EMD-8000"
