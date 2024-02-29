@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b31, 20240229, Sriram Somasundharam: JSON schema updated
 1.6b30, 20230816, Andrii Iudin: Added scale field to the example JSON
 1.6b29, 20230811, Sriram Somasundharam: JSON schema updated
 1.6b28, 20211208, Kiyo Tsunezumi: Fix of the error in $id
