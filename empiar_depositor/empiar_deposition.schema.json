@@ -1129,7 +1129,7 @@
             "type": "string",
             "pattern": "^(\\('T(?:1[0-4]|[1-9])', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
             "title": "The Header_format Schema ",
-            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4', 'T7' - 'SPIDER', 'T8' - 'XML', 'T9' - 'EER', 'T10' - 'PNG', 'T11' - 'JPEG', 'T12' - 'SMV', 'T13' - 'EM', 'T14' - 'TPX3', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
+            "description": "'T1' corresponds to 'MRC', 'T2' - 'MRCS', 'T3' - 'TIFF', 'T4' - 'IMAGIC', 'T5' - 'DM3', 'T6' - 'DM4', 'T7' - 'SPIDER', 'T8' - 'XML', 'T9' - 'EER', 'T10' - 'PNG', 'T11' - 'JPEG', 'T12' - 'SMV', 'T13' - 'EM', 'T14' - 'TPX3', 'T15' - 'BIG DATA VIEWER HDF5', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
             "examples": [
               "('T1', '')",
               "('OT', 'NEW HEADER FORMAT')"
@@ -1189,9 +1189,9 @@
           "voxel_type": {
             "$id": "/properties/imagesets/items/properties/voxel_type",
             "type": "string",
-            "pattern": "^(\\('T([1-9])', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
+            "pattern": "^(\\('T(?:1[0-4]|[1-9])', ''\\))|\\('OT', '[A-Z0-9 ]+'\\)$",
             "title": "The Voxel_type Schema ",
-            "description": "'T1' corresponds to 'UNSIGNED BYTE', 'T2' - 'SIGNED BYTE', 'T3' - 'UNSIGNED 16 BIT INTEGER', 'T4' - 'SIGNED 16 BIT INTEGER', 'T5' - 'UNSIGNED 32 BIT INTEGER', 'T6' - 'SIGNED 32 BIT INTEGER', 'T7' - '32 BIT FLOAT', 'T8' - 'BIT', 'T9' - '4 BIT INTEGER', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
+            "description": "'T1' corresponds to 'UNSIGNED BYTE', 'T2' - 'SIGNED BYTE', 'T3' - 'UNSIGNED 16 BIT INTEGER', 'T4' - 'SIGNED 16 BIT INTEGER', 'T5' - 'UNSIGNED 32 BIT INTEGER', 'T6' - 'SIGNED 32 BIT INTEGER', 'T7' - '32 BIT FLOAT', 'T8' - 'BIT', 'T9' - '4 BIT INTEGER', 'T10' - '16 BIT FLOAT', 'OT' - other, in this case please specify the header format in the second element in capital letters.",
             "examples": [
               "('T5', '')",
               "('OT', 'NEW VOXEL TYPE')"
