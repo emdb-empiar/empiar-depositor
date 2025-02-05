@@ -71,6 +71,8 @@ __date__ = '2018-02-13'
 import copy
 import json
 import os.path
+import time
+
 import requests
 import subprocess
 import sys
@@ -114,7 +116,8 @@ class EmpiarDepositor:
     def __init__(self, empiar_token, json_input, data, ascp=None, globus=None, globus_data=None,
                  globus_force_login=False, ignore_certificate=False, entry_thumbnail=None, entry_id=None,
                  entry_directory=None, stop_submit=False, dev=False, dev_local=False, password=None,
-                 output_id_dir=False, grant_rights_usernames=None, grant_rights_emails=None, grant_rights_orcids=None):
+                 output_id_dir=False, grant_rights_usernames=None, grant_rights_emails=None, grant_rights_orcids=None,
+                 globus_local_username=None):
 
         if dev:
             self.server_root = "https://wwwdev.ebi.ac.uk/pdbe/emdb/external_test/master"
@@ -131,6 +134,7 @@ class EmpiarDepositor:
         self.thumbnail_url = self.server_root + "/empiar/deposition/api/image_upload/"
         self.submission_url = self.server_root + "/empiar/deposition/api/submit_entry/"
         self.grant_rights_url = self.server_root + "/empiar/deposition/api/grant_rights/"
+        self.globus_directory_share_url = self.server_root + "/empiar/deposition/api/share_globus_directory/"
 
         if password:
             self.username = empiar_token
@@ -163,6 +167,7 @@ class EmpiarDepositor:
         self.grant_rights_usernames = self.prepare_rights_data(grant_rights_usernames)
         self.grant_rights_emails = self.prepare_rights_data(grant_rights_emails)
         self.grant_rights_orcids = self.prepare_rights_data(grant_rights_orcids)
+        self.globus_local_username = globus_local_username
 
     @staticmethod
     def globus_upload_wait(task_id):
@@ -321,39 +326,60 @@ class EmpiarDepositor:
         """
         Upload the data via globus-cli command
         """
-        sys.stdout.write("Initiating the Globus upload...\n")
+        sys.stdout.write("Starting the Globus upload process...\n")
+        sys.stdout.write("Allowing sometime for the upload directory to be created..\n")
+        is_globus_directory_shared = False
+        time.sleep(10)
+        sys.stdout.write("Trying to share the Globus upload directory with the user:" + self.globus_local_username
+                         + "\n")
+        share_directory_response = self.make_request(
+            requests.get, self.globus_directory_share_url,
+            data={"entry_id": self.entry_id, "globus_username": self.globus_local_username},
+            headers=self.auth_header, verify=self.ignore_certificate)
+        if check_json_response(share_directory_response):
+            share_directory_response_json = share_directory_response.json()
+            if "response" in share_directory_response_json:
+                if share_directory_response_json["response"][0] == "1":
+                    is_globus_directory_shared = True
 
-        # Initialise the data transfer
-        command_tr_init = ["globus transfer --format json %s %s:%s d50a0618-6d04-11e5-ba46-22000b92c6ec:%s" %
-                           (self.globus_data['is_dir'], self.globus, self.data,
-                            os.path.join(self.upload_dir, self.entry_directory, 'data', self.globus_data['obj_name']))]
+        if is_globus_directory_shared:
+            # Initialise the data transfer
+            sys.stdout.write("Initiating the Globus transfer...\n")
+            command_tr_init = ["globus transfer --format json %s %s:%s d50a0618-6d04-11e5-ba46-22000b92c6ec:%s" %
+                               (self.globus_data['is_dir'], self.globus, self.data,
+                                os.path.join(self.upload_dir, self.entry_directory, 'data', self.globus_data['obj_name']))]
 
-        out_tr_init, err_tr_init, retcode_tr_init = run_shell_command(command_tr_init)
-        success_tr_init = b'The transfer has been accepted and a task has been created and queued for execution'
-        if err_tr_init or retcode_tr_init != 0 or not out_tr_init or success_tr_init not in out_tr_init:
-            sys.stdout.write(
-                "Globus transfer initiation was not successful. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                (retcode_tr_init, out_tr_init, err_tr_init))
-            return 1
+            out_tr_init, err_tr_init, retcode_tr_init = run_shell_command(command_tr_init)
+            success_tr_init = b'The transfer has been accepted and a task has been created and queued for execution'
+            if err_tr_init or retcode_tr_init != 0 or not out_tr_init or success_tr_init not in out_tr_init:
+                sys.stdout.write(
+                    "Globus transfer initiation was not successful. Return code: %s.\nOutput:%s\nError message: %s\n" %
+                    (retcode_tr_init, out_tr_init, err_tr_init))
+                return 1
 
-        # Get task ID
-        try:
-            tr_init_json = json.loads(out_tr_init)
-        except ValueError:
-            sys.stdout.write("Error while processing transfer initiation result - the string does not contain a valid "
-                             "JSON. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                             (retcode_tr_init, out_tr_init, err_tr_init))
-            return 1
+            # Get task ID
+            try:
+                tr_init_json = json.loads(out_tr_init)
+            except ValueError:
+                sys.stdout.write("Error while processing transfer initiation result - the string does not contain a valid "
+                                 "JSON. Return code: %s.\nOutput:%s\nError message: %s\n" %
+                                 (retcode_tr_init, out_tr_init, err_tr_init))
+                return 1
 
-        if 'task_id' not in tr_init_json or not tr_init_json['task_id']:
-            sys.stdout.write("Globus JSON transfer initiation result does not have a valid structure of "
-                             "JSON['task_id']. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                             (retcode_tr_init, out_tr_init, err_tr_init))
-            return 1
+            if 'task_id' not in tr_init_json or not tr_init_json['task_id']:
+                sys.stdout.write("Globus JSON transfer initiation result does not have a valid structure of "
+                                 "JSON['task_id']. Return code: %s.\nOutput:%s\nError message: %s\n" %
+                                 (retcode_tr_init, out_tr_init, err_tr_init))
+                return 1
+            else:
+                task_id = tr_init_json['task_id']
+
+            return self.globus_upload_wait(task_id)
         else:
-            task_id = tr_init_json['task_id']
-
-        return self.globus_upload_wait(task_id)
+            sys.stdout.write("Error while trying to share the globus upload directory with user: %s"
+                             "JSON. Response data: %s.\n" %
+                             (self.globus_local_username, share_directory_response))
+            return 1
 
     def thumbnail_upload(self):
         """
@@ -659,6 +685,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
 
         globus_data = {}
         endpoint_id = None
+        globus_local_username = ''
         if args.globus:
             # Log in to Globus
             sys.stdout.write("Logging in to Globus...\n")
@@ -677,8 +704,20 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                 return 1
             sys.stdout.write("Successfully logged in\n")
 
+            command_whoami_str = 'globus whoami'
+            command_whoami = [command_whoami_str]
+            out_whoami, err_whomai, retcode_whoami = run_shell_command(command_whoami)
+            if err_whomai or retcode_whoami !=0:
+                sys.stdout.write(
+                    "Error while fetching Globus User Identity from the local Globus Session. "
+                    "Return code: %s.\nOutput:%s\nError message: %s\n" %
+                    (retcode_whoami, out_whoami, err_whomai))
+                return 1
+            sys.stdout.write("Successfully fetched depositors Globus Identity in\n")
+            globus_local_username = out_whoami.decode('utf-8').strip()
+
             # Search for the source endpoint to get its ID
-            command_es = ['globus endpoint search %s --filter-scope my-endpoints --format json' % args.globus]
+            command_es = ['globus endpoint search %s --filter-scope my-endpoints --format json' % globus_local_username]
             out_es, err_es, retcode_es = run_shell_command(command_es)
 
             if err_es or retcode_es != 0:
@@ -720,17 +759,6 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                     (retcode_es, out_es, err_es))
                 return 1
 
-            # Activate the source endpoint
-            command_activate = ['globus endpoint activate %s --format json' % endpoint_id]
-            out_activate, err_activate, retcode_activate = run_shell_command(command_activate)
-            success_activation = b'Endpoint is already activated' in out_activate or \
-                                 b'Autoactivation succeeded' in out_activate
-            if err_activate or retcode_activate != 0 or not success_activation:
-                sys.stdout.write(
-                    "Globus endpoint cannot be activated. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                    (retcode_activate, out_activate, err_activate))
-                return 1
-
             # Check that the source endpoint contains the specified data and determine if the data is a file or a
             # directory
             args.data = args.data.rstrip(os.path.sep)
@@ -754,23 +782,6 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                                  "that the path to the upload corresponds to the directory sharing settings in Globus. "
                                  "Return code: %s.\nOutput:%s\nError message: %s\n" %
                                  (retcode_ls, out_ls, err_ls))
-                return 1
-
-            # Activate the destination endpoint
-            myproxy_pass = ''
-            transfer_pass = os.environ.get('EMPIAR_TRANSFER_PASS')
-            if transfer_pass:
-                myproxy_pass = '--myproxy-password %s' % transfer_pass
-
-            command_activate = ['globus endpoint activate --format json --myproxy --myproxy-username emp_dep '
-                                '%s %s' % (myproxy_pass, endpoint_id)]
-            out_activate, err_activate, retcode_activate = run_shell_command(command_activate)
-            success_activation = b'Endpoint is already activated' in out_activate or \
-                                 b'Endpoint activated successfully' in out_activate
-            if err_activate or retcode_activate != 0 or not success_activation:
-                sys.stdout.write(
-                    "Globus endpoint cannot be activated. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                    (retcode_activate, out_activate, err_activate))
                 return 1
 
         if args.entry_thumbnail:
@@ -821,7 +832,8 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             output_id_dir=args.output_id_dir,
             grant_rights_usernames=args.grant_rights_usernames,
             grant_rights_emails=args.grant_rights_emails,
-            grant_rights_orcids=args.grant_rights_orcids
+            grant_rights_orcids=args.grant_rights_orcids,
+            globus_local_username=globus_local_username
         )
 
         dep_result = emp_dep.deposit_data()
