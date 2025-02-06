@@ -120,14 +120,17 @@ class EmpiarDepositor:
                  globus_local_username=None):
 
         if dev:
-            self.server_root = "https://wwwdev.ebi.ac.uk/pdbe/emdb/external_test/master"
+            self.server_root = "https://wwwdev.ebi.ac.uk/empiar/sat-branch/"
             self.upload_dir = 'tmp/andrii'
+            self.destination_endpoint_id = 'c09c3d09-2715-48a3-b2bd-b2a25b61887b'
         elif dev_local:
             self.server_root = "https://127.0.0.1:8001"
             self.upload_dir = 'tmp/andrii'
+            self.destination_endpoint_id = ''
         else:
             self.server_root = "https://www.ebi.ac.uk"
             self.upload_dir = 'upload'
+            self.destination_endpoint_id = '5cbc55ce-d715-4a47-a902-60764b3043de'
 
         self.deposition_url = self.server_root + "/empiar/deposition/api/deposit_entry/"
         self.redeposition_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
@@ -135,6 +138,7 @@ class EmpiarDepositor:
         self.submission_url = self.server_root + "/empiar/deposition/api/submit_entry/"
         self.grant_rights_url = self.server_root + "/empiar/deposition/api/grant_rights/"
         self.globus_directory_share_url = self.server_root + "/empiar/deposition/api/share_globus_directory/"
+        self.fetch_entry_upload_directory = self.server_root + "/empiar/deposition/api/fetch_entry_upload_directory/"
 
         if password:
             self.username = empiar_token
@@ -168,6 +172,7 @@ class EmpiarDepositor:
         self.grant_rights_emails = self.prepare_rights_data(grant_rights_emails)
         self.grant_rights_orcids = self.prepare_rights_data(grant_rights_orcids)
         self.globus_local_username = globus_local_username
+        self.api_tryout_count = 5
 
     @staticmethod
     def globus_upload_wait(task_id):
@@ -185,7 +190,7 @@ class EmpiarDepositor:
             if next_line == b'' and process.poll() is not None:
                 break
 
-            sys.stdout.write(next_line)
+            sys.stdout.write(next_line.decode('utf-8'))
             sys.stdout.flush()
 
         out_tr_wait, err_tr_wait = process.communicate()
@@ -231,19 +236,41 @@ class EmpiarDepositor:
         """
         deposition_response = self.make_request(requests.post, self.deposition_url, data=open(self.json_input, 'rb'),
                                                 headers=self.deposition_headers, verify=self.ignore_certificate)
-
         if check_json_response(deposition_response):
             deposition_response_json = deposition_response.json()
 
-            if 'deposition' in deposition_response_json and deposition_response_json['deposition'] is True and \
-                    deposition_response_json['directory'] and deposition_response_json['entry_id']:
+            if ('deposition' in deposition_response_json and deposition_response_json['deposition'] is True and
+                    deposition_response_json['entry_id']):
                 if not isinstance(deposition_response_json['entry_id'], int):
                     sys.stdout.write("Error occurred while trying to create an EMPIAR deposition. Returned entry id is "
                                      "not an integer number\n")
                     return 1
 
                 self.entry_id = deposition_response_json['entry_id']
-                self.entry_directory = deposition_response_json['directory']
+                if not deposition_response_json['directory']:
+                    sys.stdout.write("EMPIAR entry ID:" + str(self.entry_id) + " is created but upload directory is not "
+                                                                          "mapped yet.This can take sometime...\n")
+                    sys.stdout.write(
+                        "Trying to fetch upload directory for the entry:" + str(self.entry_id) + "\n")
+                    while self.api_tryout_count > 0:
+                        time.sleep(10)
+                        self.api_tryout_count = self.api_tryout_count - 1
+                        directory_response = self.make_request(requests.get, self.fetch_entry_upload_directory,
+                                                                params={"entry_id": self.entry_id},
+                                                                headers=self.deposition_headers,
+                                                                verify=self.ignore_certificate)
+                        if check_json_response(directory_response):
+                            directory_response_json = directory_response.json()
+                            if "response" in directory_response_json:
+                                if (directory_response_json["response"]["directory"] and
+                                        len(directory_response_json["response"]["directory"] > 1)):
+                                    self.entry_directory = directory_response_json["response"]["directory"]
+                                    sys.stdout.write(
+                                        "Successfully fetched the upload directory:" + self.entry_directory +
+                                        " for the entry: " + self.entry_id + "\n")
+                                    break
+                else:
+                    self.entry_directory = deposition_response_json['directory']
                 sys.stdout.write("EMPIAR deposition was successfully created. Your entry ID is %s and unique data "
                                  "directory is %s\n" % (deposition_response_json['entry_id'],
                                                         deposition_response_json['directory']))
@@ -334,20 +361,23 @@ class EmpiarDepositor:
                          + "\n")
         share_directory_response = self.make_request(
             requests.get, self.globus_directory_share_url,
-            data={"entry_id": self.entry_id, "globus_username": self.globus_local_username},
+            params={"entry_id": self.entry_id, "globus_username": self.globus_local_username},
             headers=self.auth_header, verify=self.ignore_certificate)
         if check_json_response(share_directory_response):
-            share_directory_response_json = share_directory_response.json()
+            share_directory_response_json = json.loads(share_directory_response.json())
             if "response" in share_directory_response_json:
-                if share_directory_response_json["response"][0] == "1":
+                if (share_directory_response_json["response"][0] == "1" or
+                        share_directory_response_json["response"][0] == "5"):
+                    if share_directory_response_json["response"][0] == "5":
+                        sys.stdout.write(share_directory_response_json["response"][1])
                     is_globus_directory_shared = True
 
         if is_globus_directory_shared:
             # Initialise the data transfer
             sys.stdout.write("Initiating the Globus transfer...\n")
-            command_tr_init = ["globus transfer --format json %s %s:%s d50a0618-6d04-11e5-ba46-22000b92c6ec:%s" %
-                               (self.globus_data['is_dir'], self.globus, self.data,
-                                os.path.join(self.upload_dir, self.entry_directory, 'data', self.globus_data['obj_name']))]
+            command_tr_init = ["globus transfer --format json %s %s:%s %s:%s" %
+                               (self.globus_data['is_dir'], self.globus, self.data, self.destination_endpoint_id,
+                                os.path.join('/', self.entry_directory, 'data', self.globus_data['obj_name']))]
 
             out_tr_init, err_tr_init, retcode_tr_init = run_shell_command(command_tr_init)
             success_tr_init = b'The transfer has been accepted and a task has been created and queued for execution'
@@ -713,7 +743,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                     "Return code: %s.\nOutput:%s\nError message: %s\n" %
                     (retcode_whoami, out_whoami, err_whomai))
                 return 1
-            sys.stdout.write("Successfully fetched depositors Globus Identity in\n")
+            sys.stdout.write("Successfully fetched depositors Globus Identity: " + globus_local_username + "\n")
             globus_local_username = out_whoami.decode('utf-8').strip()
 
             # Search for the source endpoint to get its ID
@@ -767,7 +797,7 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
             command_ls = ['globus ls %s:%s --format json' % (endpoint_id, args.data)]
             out_ls, err_ls, retcode_ls = run_shell_command(command_ls)
 
-            if retcode_ls == 1 and b'\'' + args.data + b'\' is not a directory' in out_ls:
+            if retcode_ls == 1 and (args.data + ' is not a directory') in out_ls.decode('utf-8'):
                 globus_data['is_dir'] = False
                 if os.path.sep in args.data:
                     command_ls = ['globus ls %s:%s --filter =%s --format json' % (endpoint_id, dir_path,
