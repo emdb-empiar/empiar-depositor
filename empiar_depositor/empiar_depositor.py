@@ -120,7 +120,7 @@ class EmpiarDepositor:
                  globus_local_username=None):
 
         if dev:
-            self.server_root = "https://wwwdev.ebi.ac.uk/empiar/sat-branch/"
+            self.server_root = "https://wwwdev.ebi.ac.uk/"
             self.upload_dir = 'tmp/andrii'
             self.destination_endpoint_id = 'c09c3d09-2715-48a3-b2bd-b2a25b61887b'
         elif dev_local:
