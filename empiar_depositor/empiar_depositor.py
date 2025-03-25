@@ -247,7 +247,7 @@ class EmpiarDepositor:
                     return 1
 
                 self.entry_id = deposition_response_json['entry_id']
-                if not deposition_response_json['directory']:
+                if deposition_response_json['directory'] == 'In progress':
                     sys.stdout.write("EMPIAR entry ID:" + str(self.entry_id) + " is created but upload directory is not "
                                                                           "mapped yet.This can take sometime...\n")
                     sys.stdout.write(
@@ -263,7 +263,7 @@ class EmpiarDepositor:
                             directory_response_json = directory_response.json()
                             if "response" in directory_response_json:
                                 if (directory_response_json["response"]["directory"] and
-                                        len(directory_response_json["response"]["directory"] > 1)):
+                                        directory_response_json["response"]["directory"] != 'In progress'):
                                     self.entry_directory = directory_response_json["response"]["directory"]
                                     sys.stdout.write(
                                         "Successfully fetched the upload directory:" + self.entry_directory +
