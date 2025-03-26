@@ -172,7 +172,7 @@ class EmpiarDepositor:
         self.grant_rights_emails = self.prepare_rights_data(grant_rights_emails)
         self.grant_rights_orcids = self.prepare_rights_data(grant_rights_orcids)
         self.globus_local_username = globus_local_username
-        self.api_tryout_count = 5
+        self.api_tryout_count = 10
 
     @staticmethod
     def globus_upload_wait(task_id):
@@ -217,6 +217,36 @@ class EmpiarDepositor:
                 return data_ready
         return None
 
+    def check_status_and_return_poll_result(self, check_url, url_parameter, max_try=10):
+        """
+        Make a request in polling wasy following a number of checks with a time interval to check status
+        of the async functionalities
+        :param check_url: url which check the status of the stated async empiar deposition operation
+        :param args: additional arguments for the request
+        :return: the response from the request if present else None
+        """
+        try_count = 0
+        if check_url and url_parameter:
+            while try_count < max_try:
+                time.sleep(30)
+                try_count = try_count + 1
+                status_check_response = self.make_request(requests.get, check_url,
+                                            params=url_parameter,
+                                            headers=self.deposition_headers,
+                                            verify=self.ignore_certificate)
+                if check_json_response(status_check_response):
+                    status_check_response_json = status_check_response.json()
+                    if "status" in status_check_response_json:
+                        if status_check_response_json["status"] != "In progress":
+                            return status_check_response_json["return_value"]
+                    else:
+                        return None
+                else:
+                    return None
+        else:
+            return None
+
+
     def make_request(self, request_method, *args, **kwargs):
         """
         Make a request - either using Basic Authentication or Token
@@ -252,28 +282,26 @@ class EmpiarDepositor:
                                                                           "mapped yet.This can take sometime...\n")
                     sys.stdout.write(
                         "Trying to fetch upload directory for the entry:" + str(self.entry_id) + "\n")
-                    while self.api_tryout_count > 0:
-                        time.sleep(10)
-                        self.api_tryout_count = self.api_tryout_count - 1
-                        directory_response = self.make_request(requests.get, self.fetch_entry_upload_directory,
-                                                                params={"entry_id": self.entry_id},
-                                                                headers=self.deposition_headers,
-                                                                verify=self.ignore_certificate)
-                        if check_json_response(directory_response):
-                            directory_response_json = directory_response.json()
-                            if "response" in directory_response_json:
-                                if (directory_response_json["response"]["directory"] and
-                                        directory_response_json["response"]["directory"] != 'In progress'):
-                                    self.entry_directory = directory_response_json["response"]["directory"]
-                                    sys.stdout.write(
-                                        "Successfully fetched the upload directory:" + self.entry_directory +
-                                        " for the entry: " + self.entry_id + "\n")
-                                    break
+                    entry_directory = self.check_status_and_return_poll_result(
+                        self.fetch_entry_upload_directory,
+                        {"entry_id": self.entry_id}
+                    )
+                    if entry_directory:
+                        self.entry_directory = entry_directory
+                        sys.stdout.write(
+                            "Successfully fetched the upload directory:" + self.entry_directory +
+                            " for the entry: " + str(self.entry_id) + "\n")
+                        sys.stdout.write(
+                            "EMPIAR deposition was successfully created. Your entry ID is %s and unique "
+                            " data directory is %s\n" % (str(self.entry_id), self.entry_directory))
+                    else:
+                        sys.stdout.write(
+                            "The creation of an EMPIAR deposition was not successful.\n")
                 else:
                     self.entry_directory = deposition_response_json['directory']
-                sys.stdout.write("EMPIAR deposition was successfully created. Your entry ID is %s and unique data "
-                                 "directory is %s\n" % (deposition_response_json['entry_id'],
-                                                        deposition_response_json['directory']))
+                    sys.stdout.write("EMPIAR deposition was successfully created. Your entry ID is %s and unique data "
+                                     "directory is %s\n" % (deposition_response_json['entry_id'],
+                                                            deposition_response_json['directory']))
 
                 return 0
 
@@ -511,16 +539,26 @@ class EmpiarDepositor:
         submission_response = self.make_request(requests.post, self.submission_url,
                                                 data='{"entry_id": "%s"}' % self.entry_id,
                                                 headers=self.deposition_headers, verify=self.ignore_certificate)
-
         if check_json_response(submission_response):
             submission_response_json = submission_response.json()
-            if 'submission' in submission_response_json and submission_response_json['submission'] is True and \
-                    submission_response_json['empiar_id']:
-                sys.stdout.write("Your submission was successful. The accession code that can be cited in paper is %s\n"
-                                 % submission_response_json['empiar_id'])
-                if self.output_id_dir:
-                    return self.entry_id, self.entry_directory
-                return 0
+            if 'submission' in submission_response_json and submission_response_json['submission'] is True:
+                if submission_response_json['status'] == 'In progress' and submission_response_json['entry_id']:
+                    sys.stdout.write("EMPIAR Entry %s submission process has been initiated after successfully "
+                                     "validating entry data. The completion of the entry submission can take "
+                                     "sometime...\n" % submission_response_json['entry_id'])
+                    sys.stdout.write(
+                        "Trying to fetch status of the " + str(self.entry_id) + " submission \n")
+                    empiar_id = self.check_status_and_return_poll_result(
+                        self.submission_url,
+                        {"entry_id": self.entry_id}
+                    )
+                    if empiar_id:
+                        sys.stdout.write(
+                            "Your submission was successful. The accession code that can be cited in paper "
+                            "is %s\n" % empiar_id)
+                        if self.output_id_dir:
+                            return self.entry_id, self.entry_directory
+                        return 0
             else:
                 sys.stdout.write("The submission of an EMPIAR deposition was not successful. Returned response: %s\n"
                                  "Status code: %s\n" % (str(submission_response_json), submission_response.status_code))
