@@ -122,7 +122,7 @@ class EmpiarDepositor:
         if dev:
             self.server_root = "https://wwwdev.ebi.ac.uk"
             self.upload_dir = 'tmp/andrii'
-            self.destination_endpoint_id = 'c09c3d09-2715-48a3-b2bd-b2a25b61887b'
+            self.destination_endpoint_id = '22baf81d-120c-495f-9c83-b3f74b423950'
         elif dev_local:
             self.server_root = "https://127.0.0.1:8001"
             self.upload_dir = 'tmp/andrii'
@@ -130,7 +130,7 @@ class EmpiarDepositor:
         else:
             self.server_root = "https://www.ebi.ac.uk"
             self.upload_dir = 'upload'
-            self.destination_endpoint_id = '5cbc55ce-d715-4a47-a902-60764b3043de'
+            self.destination_endpoint_id = '138b5c78-adef-4c12-89e6-2cd170bf63ed'
 
         self.deposition_url = self.server_root + "/empiar/deposition/api/deposit_entry/"
         self.redeposition_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
@@ -139,6 +139,8 @@ class EmpiarDepositor:
         self.grant_rights_url = self.server_root + "/empiar/deposition/api/grant_rights/"
         self.globus_directory_share_url = self.server_root + "/empiar/deposition/api/share_globus_directory/"
         self.fetch_entry_upload_directory = self.server_root + "/empiar/deposition/api/fetch_entry_upload_directory/"
+        self.upload_task_summary = self.server_root + "/empiar/deposition/api/upload_task_summary/"
+        self.acknowledge_upload = self.server_root + "/empiar/deposition/api/acknowledge_upload/"
 
         if password:
             self.username = empiar_token
@@ -401,7 +403,7 @@ class EmpiarDepositor:
         if is_globus_directory_shared:
             # Initialise the data transfer
             sys.stdout.write("Initiating the Globus transfer...\n")
-            command_tr_init = ["globus transfer --format json %s %s:%s %s:%s" %
+            command_tr_init = ["globus transfer --label EMPIAR_Transfer_Task --format json %s %s:%s %s:%s" %
                                (self.globus_data['is_dir'], self.globus, self.data, self.destination_endpoint_id,
                                 os.path.join('/', self.entry_directory, 'data', self.globus_data['obj_name']))]
 
@@ -590,6 +592,23 @@ class EmpiarDepositor:
 
             if upload_code == 0:
                 sys.stdout.write("Finished uploading the data.\n")
+
+                sys.stdout.write("Acknowledging the completion of data upload\n")
+                # Acknowledge upload completion
+                ack_upload_summary = self.make_request(
+                    requests.post, self.acknowledge_upload,
+                    params={"entry_id": self.entry_id},
+                    headers=self.auth_header, verify=self.ignore_certificate)
+                if check_json_response(ack_upload_summary):
+                    ack_upload_summary_response_json = ack_upload_summary.json()
+                    if ack_upload_summary_response_json["response_code"] == 1:
+                        sys.stdout.write(
+                            "Upload completion acknowledged successfully\n"
+                        )
+                    else:
+                        sys.stdout.write(
+                            "Error while trying to fetch Upload status Summary. Please write to empdep-help@ebi.ac.uk\n"
+                        )
 
                 grant_rights_exist = self.grant_rights_usernames or self.grant_rights_emails or self.grant_rights_orcids
                 grant_rights_result = 0
