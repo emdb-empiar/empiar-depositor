@@ -4,22 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "empiar-depositor"
-version = "1.6.0"
-authors = [
-  { name="EMPIAR Team", email="empdep-help@ebi.ac.uk" },
-]
-description = "A command-line tool for creating EMPIAR depositions and uploading data."
-readme = "README.md"
-requires-python = ">=3.7"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Intended Audience :: Science/Research",
-]
-dependencies = [
-    "requests>=2.25.0",
-]
+version = "1.6.30"
+# ... other metadata ...
 
 [project.scripts]
-empiar-depositor = "empiar_depositor.main:main"
+# Command = "package_folder.filename:function"
+empiar-depositor = "empiar_depositor.empiar_depositor:main"
+
+[tool.setuptools]
+# Automatically find the empiar_depositor folder
+packages = ["empiar_depositor"]
+
+[tool.setuptools.package-data]
+# Ensure the schema is included in the build
+"empiar_depositor" = ["*.json"]

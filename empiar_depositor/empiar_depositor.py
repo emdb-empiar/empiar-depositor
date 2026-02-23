@@ -19,6 +19,7 @@ specific language governing permissions and limitations
 under the License.
 
 Version history
+1.6b32, 20240229, Sriram Somasundharam: Complete re-do of script to remove ascp uploads and introduce workflows
 1.6b31, 20240229, Sriram Somasundharam: JSON schema updated
 1.6b30, 20230816, Andrii Iudin: Added scale field to the example JSON
 1.6b29, 20230811, Sriram Somasundharam: JSON schema updated
@@ -64,15 +65,15 @@ in three steps: create entry, upload data, submit.
 0.1, 20180213, Andrii Iudin: Initial version.
 """
 
-__author__ = 'Andrii Iudin'
-__email__ = 'andrii@ebi.ac.uk'
+__author__ = 'Andrii Iudin, Sriram Somasundharam'
+__email__ = 'sriram@ebi.ac.uk'
 __date__ = '2018-02-13'
 
 import copy
 import json
 import os.path
 import time
-
+import traceback
 import requests
 import subprocess
 import sys
@@ -81,23 +82,38 @@ from getpass import getpass
 from requests.auth import HTTPBasicAuth
 from requests.models import Response
 
+# Validation utility
+try:
+    from jsonschema import validate, exceptions
+except ImportError:
+    jsonschema = None
 
-def run_shell_command(command):
+
+def run_shell_command(command_list):
     """
-    Run shell command
-    :param command: the command that will be executed
-    :return: process return code
+    Executes a system command securely using a list of arguments to prevent shell injection.
+
+    Args:
+        command_list (list): The command and its arguments.
+    Returns:
+        tuple: (stdout, stderr, returncode)
     """
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    p_out, p_err = process.communicate()
-    return p_out, p_err, process.returncode
+    try:
+        process = subprocess.Popen(
+            command_list,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=False
+        )
+        p_out, p_err = process.communicate()
+        return p_out, p_err, process.returncode
+    except FileNotFoundError:
+        return b"", b"Command not found. Is globus-cli installed?", 127
 
 
 def check_json_response(response):
     """
-    Check if the response has JSON content type
-    :param response: Response object of requests Python module
-    :return: True if response has JSON content type, False otherwise
+    Checks if the server response is a valid Response object with a JSON content-type.
     """
     is_response = isinstance(response, Response)
     result = is_response and \
@@ -107,788 +123,605 @@ def check_json_response(response):
     return result
 
 
+def validate_empiar_json(json_path, schema_path):
+    """
+    Validates the deposition JSON metadata against the official EMPIAR schema.
+    """
+    if not os.path.exists(schema_path):
+        print(f"Warning: Schema file '{schema_path}' not found. Skipping deep validation.\n")
+        return True
+
+    try:
+        with open(schema_path, 'r') as s_file, open(json_path, 'r') as i_file:
+            schema_data = json.load(s_file)
+            input_data = json.load(i_file)
+
+            validate(instance=input_data, schema=schema_data)
+
+            print("JSON schema validation successful.\n")
+            return True
+
+    except exceptions.ValidationError as ve:
+        print(f"\n[!] Metadata Validation Error in '{json_path}':\n")
+        print(f"    - Field Path: {ve.json_path}\n")
+        print(f"    - Reason: {ve.message}\n")
+        return False
+    except json.JSONDecodeError as e:
+        print(f"Error: Could not parse JSON. Check syntax: {str(e)}\n")
+        return False
+    except Exception as e:
+        print(f"Unexpected validation error: {str(e)}\n")
+        return False
+
+
 class EmpiarDepositor:
     """
-    The :class:`EmpiarDepositor <EmpiarDepositor>` object, which is used to create EMPIAR deposition, upload data and
-    submit the deposition for annotation
+    Manages interactions with the EMPIAR Deposition API, including entry creation,
+    rights management, and submission.
     """
 
-    def __init__(self, empiar_token, json_input, data, ascp=None, globus=None, globus_data=None,
-                 globus_force_login=False, ignore_certificate=False, entry_thumbnail=None, entry_id=None,
-                 entry_directory=None, stop_submit=False, dev=False, dev_local=False, password=None,
-                 output_id_dir=False, grant_rights_usernames=None, grant_rights_emails=None, grant_rights_orcids=None,
-                 globus_local_username=None):
+    def __init__(
+            self,
+            empiar_token,
+            json_input,
+            server_root,
+            data,
+            globus_source_endpoint,
+            ignore_certificate,
+            entry_thumbnail,
+            entry_id=None,
+            entry_directory=None,
+            stop_submit=False,
+            password=None,
+            output_id_dir=False,
+            grant_rights_usernames=None,
+            grant_rights_emails=None,
+            grant_rights_orcids=None,
+            globus_local_username=None,
+            dev=False
+    ):
 
-        if dev:
-            self.server_root = "https://wwwdev.ebi.ac.uk"
-            self.upload_dir = 'tmp/andrii'
-            self.destination_endpoint_id = '22baf81d-120c-495f-9c83-b3f74b423950'
-        elif dev_local:
-            self.server_root = "https://127.0.0.1:8001"
-            self.upload_dir = 'tmp/andrii'
-            self.destination_endpoint_id = ''
-        else:
-            self.server_root = "https://www.ebi.ac.uk"
-            self.upload_dir = 'upload'
-            self.destination_endpoint_id = '138b5c78-adef-4c12-89e6-2cd170bf63ed'
-
+        self.server_root = server_root
         self.deposition_url = self.server_root + "/empiar/deposition/api/deposit_entry/"
-        self.redeposition_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
+        self.redeposit_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
         self.thumbnail_url = self.server_root + "/empiar/deposition/api/image_upload/"
         self.submission_url = self.server_root + "/empiar/deposition/api/submit_entry/"
         self.grant_rights_url = self.server_root + "/empiar/deposition/api/grant_rights/"
         self.globus_directory_share_url = self.server_root + "/empiar/deposition/api/share_globus_directory/"
         self.fetch_entry_upload_directory = self.server_root + "/empiar/deposition/api/fetch_entry_upload_directory/"
-        self.upload_task_summary = self.server_root + "/empiar/deposition/api/upload_task_summary/"
         self.acknowledge_upload = self.server_root + "/empiar/deposition/api/acknowledge_upload/"
 
-        if password:
-            self.username = empiar_token
-            self.auth_header = {
-                'WWW-Authenticate': 'Basic realm="api"',
-            }
-        else:
-            self.auth_header = {
-                'Authorization': 'Token ' + empiar_token,
-            }
-
-        self.deposition_headers = {
-            'Content-type': 'application/json',
-        }
+        self.username = empiar_token if password else None
+        self.password = password
+        self.auth_header = {'Authorization': 'Token ' + empiar_token} if not password else {}
+        self.deposition_headers = {'Content-type': 'application/json'}
         self.deposition_headers.update(self.auth_header)
 
         self.json_input = json_input
         self.data = data
-        self.password = password
-        self.ascp = ascp
-        self.globus = globus
-        self.globus_data = globus_data
-        self.globus_force_login = globus_force_login
+        self.globus_source_endpoint = globus_source_endpoint
         self.ignore_certificate = ignore_certificate
         self.entry_thumbnail = entry_thumbnail
         self.entry_id = entry_id
         self.entry_directory = entry_directory
         self.stop_submit = stop_submit
-        self.output_id_dir = output_id_dir
-        self.grant_rights_usernames = self.prepare_rights_data(grant_rights_usernames)
-        self.grant_rights_emails = self.prepare_rights_data(grant_rights_emails)
-        self.grant_rights_orcids = self.prepare_rights_data(grant_rights_orcids)
         self.globus_local_username = globus_local_username
-        self.api_tryout_count = 10
 
-    @staticmethod
-    def globus_upload_wait(task_id):
-        """
-        Wait for the Globus upload to finish
-        """
-        sys.stdout.write("Transfer in progress, waiting on task %s to complete\n" % task_id)
-        command_tr_wait = ['globus task wait -vvv --format json %s' % task_id]
-
-        process = subprocess.Popen(command_tr_wait, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-        # Poll process for new output until finished
-        while True:
-            next_line = process.stdout.readline()
-            if next_line == b'' and process.poll() is not None:
-                break
-
-            sys.stdout.write(next_line.decode('utf-8'))
-            sys.stdout.flush()
-
-        out_tr_wait, err_tr_wait = process.communicate()
-        retcode_tr_wait = process.returncode
-
-        if retcode_tr_wait != 0 or err_tr_wait:
-            sys.stdout.write("Error while waiting for the transfer to finish. Return code: %s.\nOutput:%s\nError "
-                             "message: %s\n" % (retcode_tr_wait, out_tr_wait, err_tr_wait))
-
-        return retcode_tr_wait
+        self.rights_data = {
+            'u': self.prepare_rights_data(grant_rights_usernames),
+            'e': self.prepare_rights_data(grant_rights_emails),
+            'o': self.prepare_rights_data(grant_rights_orcids)
+        }
+        self.empiar_accession = None
 
     @staticmethod
     def prepare_rights_data(data):
         """
-        Turn the comma separated list of user-specific fields and rights into a dictionary
-        :param data: a string that contains a comma separated list of colon separated user-specific fields and rights,
-        for example, 'usernam1:2,username2:1'
-        :return: a dictionary with user-specific fields as keys and corresponding rights as values, for example,
-        {'username1': 2, 'username2': 1}
+        Formats user rights input into a dictionary for API submission.
         """
-        if data:
-            if data.count(':') == data.count(',') + 1:
-                data_ready = {k[0]: k[1] for k in tuple(i.split(':') for i in data.split(','))}
-                return data_ready
+        if data and data.count(':') == data.count(',') + 1:
+            return {k[0]: k[1] for k in tuple(i.split(':') for i in data.split(','))}
         return None
-
-    def check_status_and_return_poll_result(self, check_url, url_parameter, max_try=10):
-        """
-        Make a request in polling wasy following a number of checks with a time interval to check status
-        of the async functionalities
-        :param check_url: url which check the status of the stated async empiar deposition operation
-        :param args: additional arguments for the request
-        :return: the response from the request if present else None
-        """
-        try_count = 0
-        if check_url and url_parameter:
-            while try_count < max_try:
-                time.sleep(30)
-                try_count = try_count + 1
-                status_check_response = self.make_request(requests.get, check_url,
-                                            params=url_parameter,
-                                            headers=self.deposition_headers,
-                                            verify=self.ignore_certificate)
-                if check_json_response(status_check_response):
-                    status_check_response_json = status_check_response.json()
-                    if "status" in status_check_response_json:
-                        if status_check_response_json["status"] != "In progress":
-                            return status_check_response_json["return_value"]
-                    else:
-                        return None
-                else:
-                    return None
-        else:
-            return None
-
 
     def make_request(self, request_method, *args, **kwargs):
         """
-        Make a request - either using Basic Authentication or Token
-        :param request_method: the method of request, such as requests.get or requests.post
-        :param args: additional arguments for the request
-        :return: the response from the request
+        Executes an HTTP request with either Token or Basic authentication.
         """
         if self.password:
-            response = request_method(*args, auth=HTTPBasicAuth(self.username, self.password), **kwargs)
-        else:
-            response = request_method(*args, **kwargs)
-        return response
+            return request_method(*args, auth=HTTPBasicAuth(self.username, self.password), **kwargs)
+        return request_method(*args, **kwargs)
+
+    def check_status_and_return_poll_result(self, check_url, url_parameter, max_try=10):
+        """
+        Polls a specific API endpoint until a task is no longer in progress.
+        """
+        try_count = 0
+        while try_count < max_try:
+            time.sleep(30)
+            try_count += 1
+            response = self.make_request(requests.get, check_url, params=url_parameter,
+                                         headers=self.deposition_headers)
+            if check_json_response(response):
+                res_json = response.json()
+                print(f"{res_json}")
+                if res_json.get("status") != "In progress":
+                    return res_json.get("return_value") or res_json.get("empiar_id")
+        raise TimeoutError(f"Polling failed after {max_try} attempts for URL: {check_url}")
 
     def create_new_deposition(self):
         """
-        Create a new EMPIAR deposition
+        Initiates a new EMPIAR deposition by uploading metadata and fetching the upload directory.
         """
-        deposition_response = self.make_request(requests.post, self.deposition_url, data=open(self.json_input, 'rb'),
-                                                headers=self.deposition_headers, verify=self.ignore_certificate)
-        if check_json_response(deposition_response):
-            deposition_response_json = deposition_response.json()
+        try:
+            with open(self.json_input, 'rb') as f:
+                response = self.make_request(requests.post, self.deposition_url, data=f,
+                                             headers=self.deposition_headers)
+            if check_json_response(response):
+                res_json = response.json()
+                if res_json.get('deposition') is True:
+                    self.entry_id = res_json['entry_id']
+                    self.entry_directory = res_json['directory']
+                    if self.entry_directory == 'In progress':
+                        self.entry_directory = self.check_status_and_return_poll_result(
+                            self.fetch_entry_upload_directory,
+                            {"entry_id": self.entry_id})
 
-            if ('deposition' in deposition_response_json and deposition_response_json['deposition'] is True and
-                    deposition_response_json['entry_id']):
-                if not isinstance(deposition_response_json['entry_id'], int):
-                    sys.stdout.write("Error occurred while trying to create an EMPIAR deposition. Returned entry id is "
-                                     "not an integer number\n")
-                    return 1
-
-                self.entry_id = deposition_response_json['entry_id']
-                if deposition_response_json['directory'] == 'In progress':
-                    sys.stdout.write("EMPIAR entry ID:" + str(self.entry_id) + " is created but upload directory is not "
-                                                                          "mapped yet.This can take sometime...\n")
-                    sys.stdout.write(
-                        "Trying to fetch upload directory for the entry:" + str(self.entry_id) + "\n")
-                    entry_directory = self.check_status_and_return_poll_result(
-                        self.fetch_entry_upload_directory,
-                        {"entry_id": self.entry_id}
-                    )
-                    if entry_directory:
-                        self.entry_directory = entry_directory
-                        sys.stdout.write(
-                            "Successfully fetched the upload directory:" + self.entry_directory +
-                            " for the entry: " + str(self.entry_id) + "\n")
-                        sys.stdout.write(
-                            "EMPIAR deposition was successfully created. Your entry ID is %s and unique "
-                            " data directory is %s\n" % (str(self.entry_id), self.entry_directory))
-                    else:
-                        sys.stdout.write(
-                            "The creation of an EMPIAR deposition was not successful.\n")
-                else:
-                    self.entry_directory = deposition_response_json['directory']
-                    sys.stdout.write("EMPIAR deposition was successfully created. Your entry ID is %s and unique data "
-                                     "directory is %s\n" % (deposition_response_json['entry_id'],
-                                                            deposition_response_json['directory']))
-
-                return 0
-
+            if self.entry_directory:
+                print(
+                    f"Successfully create initial deposition with entry ID: {self.entry_id} and upload directory: {self.entry_directory}\n")
+                return True
             else:
-                sys.stdout.write("The creation of an EMPIAR deposition was not successful. Returned response: %s\n"
-                                 "Status code: %s\n" % (str(deposition_response_json), deposition_response.status_code))
-
-        return 1
+                return False
+        except Exception as e:
+            traceback.print_exc(file=sys.stderr)
+            print(f"Error occurred while trying create initial deposition: {e}\n")
+            return False
 
     def redeposit(self):
         """
-        Re-deposit the data into EMPIAR. Updates an existing deposition
+        Updates an existing EMPIAR deposition with new metadata.
         """
         with open(self.json_input, 'rb') as f:
             data_dict = json.load(f)
-
         data_dict['entry_id'] = self.entry_id
-        json_obj = json.dumps(data_dict, ensure_ascii=False).encode('utf8')
-        redeposition_response = self.make_request(requests.put, self.redeposition_url, data=json_obj,
-                                                  headers=self.deposition_headers, verify=self.ignore_certificate)
+        response = self.make_request(requests.put, self.redeposit_url, json=data_dict,
+                                     headers=self.deposition_headers)
+        if check_json_response(response) and response.json().get('deposition'):
+            self.entry_directory = response.json().get('directory')
+            return True
+        return False
 
-        if check_json_response(redeposition_response):
-            redeposition_response_json = redeposition_response.json()
-
-            if 'deposition' in redeposition_response_json and redeposition_response_json['deposition'] is True and \
-                    redeposition_response_json['directory'] and redeposition_response_json['entry_id']:
-                if not isinstance(redeposition_response_json['entry_id'], int):
-                    sys.stdout.write("Error occurred while trying to update an EMPIAR deposition. Returned entry id is "
-                                     "not an integer number\n")
-                    return 1
-
-                self.entry_id = redeposition_response_json['entry_id']
-                self.entry_directory = redeposition_response_json['directory']
-                sys.stdout.write("EMPIAR deposition was successfully updated. Your entry ID is %s and unique data "
-                                 "directory is %s\n" % (redeposition_response_json['entry_id'],
-                                                        redeposition_response_json['directory']))
-
-                return 0
-
-            else:
-                sys.stdout.write("The update of an EMPIAR deposition was not successful. Returned response: %s\nStatus "
-                                 "code: %s" % (str(redeposition_response_json), redeposition_response.status_code))
-
-        sys.stdout.write("The update of the entry was not successful.\n")
-        return 1
-
-    def aspera_upload(self):
+    def grant_rights(self):
         """
-        Upload the data via Aspera ascp command
+        Assigns access rights to specific EMPIAR users for the deposition.
         """
-        sys.stdout.write("Initiating the Aspera upload...\n")
-
-        transfer_pass = os.environ.get('EMPIAR_TRANSFER_PASS')
-        if transfer_pass:
-            os.environ['ASPERA_SCP_PASS'] = transfer_pass
-        sys.stdout.write('data: ' + str(self.data) + '\n')
-        sys.stdout.write('ED: ' + self.entry_directory + '\n')
-
-        command = ['"' + self.ascp + '" -QT -l 200M -P 33001 -L- -k3 ' + self.data +
-                   ' emp_dep@hx-fasp-1.ebi.ac.uk:' + os.path.join(self.upload_dir, self.entry_directory, 'data')]
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-        # Poll process for new output until finished
-        while True:
-            next_line = process.stdout.readline()
-            if next_line == b'' and process.poll() is not None:
-                break
-
-            sys.stdout.write(next_line.decode("utf-8"))
-            sys.stdout.flush()
-
-        process.communicate()
-
-        return process.returncode
-
-    def globus_upload(self):
-        """
-        Upload the data via globus-cli command
-        """
-        sys.stdout.write("Starting the Globus upload process...\n")
-        is_globus_directory_shared = False
-        sys.stdout.write("Trying to share the Globus upload directory with the user:" + self.globus_local_username
-                         + "\n")
-        share_directory_response = self.make_request(
-            requests.get, self.globus_directory_share_url,
-            params={"entry_id": self.entry_id, "globus_username": self.globus_local_username},
-            headers=self.auth_header, verify=self.ignore_certificate)
-        if check_json_response(share_directory_response):
-            share_directory_response_json = json.loads(share_directory_response.json())
-            if "response" in share_directory_response_json:
-                if (share_directory_response_json["response"][0] == "1" or
-                        share_directory_response_json["response"][0] == "5"):
-                    if share_directory_response_json["response"][0] == "5":
-                        sys.stdout.write(share_directory_response_json["response"][1])
-                    is_globus_directory_shared = True
-
-        if is_globus_directory_shared:
-            # Initialise the data transfer
-            sys.stdout.write("Initiating the Globus transfer...\n")
-            command_tr_init = ["globus transfer --label EMPIAR_Transfer_Task --format json %s %s:%s %s:%s" %
-                               (self.globus_data['is_dir'], self.globus, self.data, self.destination_endpoint_id,
-                                os.path.join('/', self.entry_directory, 'data', self.globus_data['obj_name']))]
-
-            out_tr_init, err_tr_init, retcode_tr_init = run_shell_command(command_tr_init)
-            success_tr_init = b'The transfer has been accepted and a task has been created and queued for execution'
-            if err_tr_init or retcode_tr_init != 0 or not out_tr_init or success_tr_init not in out_tr_init:
-                sys.stdout.write(
-                    "Globus transfer initiation was not successful. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                    (retcode_tr_init, out_tr_init, err_tr_init))
-                return 1
-
-            # Get task ID
-            try:
-                tr_init_json = json.loads(out_tr_init)
-            except ValueError:
-                sys.stdout.write("Error while processing transfer initiation result - the string does not contain a valid "
-                                 "JSON. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                                 (retcode_tr_init, out_tr_init, err_tr_init))
-                return 1
-
-            if 'task_id' not in tr_init_json or not tr_init_json['task_id']:
-                sys.stdout.write("Globus JSON transfer initiation result does not have a valid structure of "
-                                 "JSON['task_id']. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                                 (retcode_tr_init, out_tr_init, err_tr_init))
-                return 1
-            else:
-                task_id = tr_init_json['task_id']
-
-            return self.globus_upload_wait(task_id)
-        else:
-            sys.stdout.write("Error while trying to share the globus upload directory with user: %s"
-                             "JSON. Response data: %s.\n" %
-                             (self.globus_local_username, share_directory_response))
-            return 1
+        success = True
+        for key, val in self.rights_data.items():
+            if val:
+                payload = {key: val, "entry_id": self.entry_id}
+                res = self.make_request(requests.post, self.grant_rights_url, json=payload,
+                                        headers=self.deposition_headers)
+                if not (check_json_response(res) and res.status_code == 200):
+                    success = False
+        return True if success else False
 
     def thumbnail_upload(self):
         """
         Upload the thumbnail image that will represent the entry on EMPIAR pages
         """
-        sys.stdout.write("Initiating the upload of the thumbnail image...\n")
-        f = open(self.entry_thumbnail, 'rb')
-        files = {'file': (self.entry_thumbnail, f)}
-        thumbnail_response = self.make_request(requests.post, self.thumbnail_url, data={"entry_id": self.entry_id},
-                                               files=files, headers=self.auth_header, verify=self.ignore_certificate)
-        f.close()
-
-        if check_json_response(thumbnail_response):
-            thumbnail_response_json = thumbnail_response.json()
-
-            if 'thumbnail_upload' in thumbnail_response_json and thumbnail_response_json['thumbnail_upload'] is True:
-                sys.stdout.write("Successfully uploaded the thumbnail for EMPIAR deposition.\n")
-                return 0
-            else:
-                sys.stdout.write("The upload of the thumbnail for EMPIAR deposition was not successful. Returned "
-                                 "response: %s\nStatus code: %s\n" % (str(thumbnail_response_json),
-                                                                      thumbnail_response.status_code))
-
-        sys.stdout.write("The upload of the thumbnail was not successful.\n")
-        return 1
-
-    def grant_rights(self):
-        """
-        Grant rights to users
-        """
-        sys.stdout.write("Initiating the granting rights to the deposition...\n")
-        if self.entry_id:
-            data_list = []
-            grant_rights_successes = {}
-            if self.grant_rights_usernames:
-                data_list.append({'u': self.grant_rights_usernames})
-                for username in self.grant_rights_usernames:
-                    grant_rights_successes[username] = False
-
-            if self.grant_rights_emails:
-                data_list.append({'e': self.grant_rights_emails})
-                for email in self.grant_rights_emails:
-                    grant_rights_successes[email] = False
-
-            if self.grant_rights_orcids:
-                data_list.append({'o': self.grant_rights_orcids})
-                for orcid in self.grant_rights_orcids:
-                    grant_rights_successes[orcid] = False
-
-            for i in range(len(data_list)):
-                data_dict = data_list[i]
-                data_dict["entry_id"] = self.entry_id
-                data_str = json.dumps(data_dict, ensure_ascii=False).encode('utf8')
-                grant_rights_response = self.make_request(
-                    requests.post, self.grant_rights_url, data=data_str,
-                    headers=self.deposition_headers, verify=self.ignore_certificate
+        print("Initiating the upload of the thumbnail image...\n")
+        try:
+            with open(self.entry_thumbnail, 'rb') as f:
+                files = {'file': (self.entry_thumbnail, f)}
+                thumbnail_response = self.make_request(
+                    requests.post,
+                    self.thumbnail_url,
+                    data={"entry_id": self.entry_id},
+                    files=files,
+                    headers=self.auth_header,
+                    verify=self.ignore_certificate
                 )
 
-                if check_json_response(grant_rights_response):
-                    grant_rights_response_json = grant_rights_response.json()
-                    for user_result in grant_rights_response_json:
-                        if user_result and user_result in grant_rights_successes:
-                            grant_rights_successes[user_result] = True
+            if check_json_response(thumbnail_response):
+                thumbnail_response_json = thumbnail_response.json()
 
-                    if grant_rights_response.status_code == 200:
-                        sys.stdout.write(
-                            "Successfully granted rights {data_dict} EMPIAR deposition {entry_id}.\n".format(
-                                data_dict=data_dict,
-                                entry_id=self.entry_id
-                            )
-                        )
-                    else:
-                        sys.stdout.write("The granting rights for EMPIAR deposition for %s was not successful. Returned "
-                                         "response: %s\nStatus code: %s\n" % (data_dict,
-                                                                              grant_rights_response_json,
-                                                                              grant_rights_response.status_code))
+                if thumbnail_response_json.get('thumbnail_upload') is True:
+                    print("Successfully uploaded the thumbnail for EMPIAR deposition.\n")
+                    return True
+                else:
+                    print("The upload of the thumbnail for EMPIAR deposition was not successful. "
+                          "Returned response: %s\nStatus code: %s\n" %
+                          (str(thumbnail_response_json), thumbnail_response.status_code))
+                    return False
 
-            if not grant_rights_successes or False in grant_rights_successes.values():
-                sys.stdout.write("The granting rights for EMPIAR deposition was not successful.")
-                if grant_rights_successes:
-                    sys.stdout.write(
-                        "The following user(s) did not have rights granted: {grant_rights_successes}".format(
-                            grant_rights_successes=grant_rights_successes
-                        )
-                    )
-                return 1
-        else:
-            sys.stdout.write("Please provide an entry ID.")
-            return 1
+            print("The upload of the thumbnail was not successful (Invalid JSON response).\n")
+            return False
+        except Exception as e:
+            traceback.print_exc(file=sys.stderr)
+            print(f"An error occurred during thumbnail upload: {e}\n")
+            return False
 
-        return 0
+    def share_upload_directory(self):
+        """
+        Requests EMPIAR to share the server's Globus directory with the user's identity.
+        """
+        try:
+            is_globus_directory_shared = False
+            print("Sharing the Globus upload directory with the user:" + self.globus_local_username
+                  + "\n")
+            share_directory_response = self.make_request(
+                requests.get, self.globus_directory_share_url,
+                params={"entry_id": self.entry_id, "globus_username": self.globus_local_username},
+                headers=self.auth_header, verify=self.ignore_certificate)
+
+            if check_json_response(share_directory_response):
+                share_directory_response_json = json.loads(share_directory_response.json())
+                if "response" in share_directory_response_json:
+                    if (share_directory_response_json["response"][0] == "1" or
+                            share_directory_response_json["response"][0] == "5"):
+                        if share_directory_response_json["response"][0] == "5":
+                            print(share_directory_response_json["response"][1] + "\n")
+                        is_globus_directory_shared = True
+            return True if is_globus_directory_shared else False
+        except Exception as e:
+            traceback.print_exc(file=sys.stderr)
+            print(f"Error occurred while tryung to share globus directory: {e}\n")
+            return False
+
+    def acknowledge_completion(self):
+        """
+        Notifies EMPIAR that the data transfer is finished and ready for validation.
+        """
+        res = self.make_request(requests.post, self.acknowledge_upload, params={"entry_id": self.entry_id},
+                                headers=self.auth_header)
+        return True if check_json_response(res) and res.json().get("response_code") == 1 else False
 
     def submit_deposition(self):
         """
-        Submit the deposition for annotation
+        Finalizes the deposition and submits it for curation.
         """
-        sys.stdout.write("Initiating the submission of the deposition...\n")
+        res = self.make_request(requests.post, self.submission_url, json={"entry_id": str(self.entry_id)},
+                                headers=self.deposition_headers)
+        if check_json_response(res) and res.json().get('submission'):
+            self.empiar_accession = self.check_status_and_return_poll_result(self.submission_url,
+                                                                             {"entry_id": self.entry_id})
+            return True if self.empiar_accession else False
+        return False
 
-        submission_response = self.make_request(requests.post, self.submission_url,
-                                                data='{"entry_id": "%s"}' % self.entry_id,
-                                                headers=self.deposition_headers, verify=self.ignore_certificate)
-        if check_json_response(submission_response):
-            submission_response_json = submission_response.json()
-            if 'submission' in submission_response_json and submission_response_json['submission'] is True:
-                if submission_response_json['status'] == 'In progress' and submission_response_json['entry_id']:
-                    sys.stdout.write("EMPIAR Entry %s submission process has been initiated after successfully "
-                                     "validating entry data. The completion of the entry submission can take "
-                                     "sometime...\n" % submission_response_json['entry_id'])
-                    sys.stdout.write(
-                        "Trying to fetch status of the " + str(self.entry_id) + " submission \n")
-                    empiar_id = self.check_status_and_return_poll_result(
-                        self.submission_url,
-                        {"entry_id": self.entry_id}
-                    )
-                    if empiar_id:
-                        sys.stdout.write(
-                            "Your submission was successful. The accession code that can be cited in paper "
-                            "is %s\n" % empiar_id)
-                        if self.output_id_dir:
-                            return self.entry_id, self.entry_directory
-                        return 0
-            else:
-                sys.stdout.write("The submission of an EMPIAR deposition was not successful. Returned response: %s\n"
-                                 "Status code: %s\n" % (str(submission_response_json), submission_response.status_code))
 
-        sys.stdout.write("The submission of the entry was not successful.\n")
-        return 1
+class GlobusHelper:
+    """
+    Encapsulates all Globus CLI interactions and validations.
+    """
 
-    def deposit_data(self):
+    def __init__(self, endpoint_search_parameter, local_data_path, force_login=False):
+        self.endpoint_search_parameter = endpoint_search_parameter
+        self.local_data_path = local_data_path
+        self.force_login = force_login
+        self.user_identity = None
+        self.endpoint_id = None
+        self.dir_flag = "-r"
+        self.obj_name = None
+        self.helper_status = None
+
+    def login_and_identify(self):
         """
-        Create, upload and submit a deposition to EMPIAR
+        Authenticates the user via Globus CLI and retrieves their identity.
         """
-        upload_code = -1
-        if not (self.entry_id and self.entry_directory):
-            dep_code = self.create_new_deposition()
+        print("Logging in to Globus...\n")
+        cmd = ['globus', 'login']
+        if self.force_login:
+            cmd.append('--force')
+
+        out, err, code = run_shell_command(cmd)
+
+        success_login = b'You have successfully logged in to the Globus CLI' in out or \
+                        b'You are already logged in' in out
+
+        if not success_login or code != 0:
+            self.helper_status = "ERRORED 2 A"
+            raise Exception("Globus login failed. Please ensure globus-cli is configured.")
+
+        print("Successfully logged in\n")
+
+        out_who, err_who, code_who = run_shell_command(["globus", "whoami"])
+        if err_who or code_who != 0:
+            self.helper_status = "ERRORED 2 B"
+            raise Exception("Could not fetch Globus identity. Check your connection.")
+
+        self.user_identity = out_who.decode('utf-8').strip()
+        print(f"Successfully fetched depositors Globus Identity: {self.user_identity}\n")
+        return True
+
+    def check_local_endpoint_id(self):
+        """
+        Resolves the user-provided endpoint name or UUID to a valid Globus Endpoint ID.
+        """
+        print(f"Checking if {self.endpoint_search_parameter} exists in local endpoints...\n")
+        cmd = [
+            "globus", "endpoint", "search",
+            self.user_identity,
+            "--filter-scope", "my-endpoints",
+            "--format", "json"
+        ]
+        out, err, code = run_shell_command(cmd)
+
+        if code != 0:
+            self.helper_status = "ERRORED 2 C"
+            raise Exception(f"Endpoint search failed for {self.user_identity}. Error: {err}")
+
+        endpoints = json.loads(out)
+        for endpoint in endpoints.get('DATA', []):
+            if endpoint.get('display_name') == self.endpoint_search_parameter or \
+                    endpoint.get('id') == self.endpoint_search_parameter:
+                self.endpoint_id = endpoint['id']
+                break
+
+        if not self.endpoint_id:
+            self.helper_status = "ERRORED 2 C"
+            raise Exception(f"Could not find local collection: {self.endpoint_search_parameter}")
+
+        print(f"Validated local endpoint: {self.endpoint_id}\n")
+        return True
+
+    def validate_path_access(self, data_path):
+        """
+        Verifies that the data path is accessible on the selected Globus endpoint.
+        """
+        print(f"Checking access for {data_path} on endpoint {self.endpoint_id}\n")
+
+        if os.path.isdir(data_path):
+            self.dir_flag = '-r'
+            clean_path = data_path.rstrip(os.path.sep)
+            command_check = ["globus", "ls", f"{self.endpoint_id}:{clean_path}", "--format", "json"]
+        elif os.path.isfile(data_path):
+            self.dir_flag = ''
+            dir_path = os.path.dirname(data_path)
+            file_name = os.path.basename(data_path)
+            command_check = ["globus", "ls", f"{self.endpoint_id}:{dir_path}", "--filter", f"={file_name}", "--format",
+                             "json"]
         else:
-            dep_code = self.redeposit()
+            self.helper_status = "ERRORED 2 D"
+            raise Exception(f"Path does not exist locally: {data_path}")
 
-        if dep_code == 0:
-            if self.entry_thumbnail:
-                thumb_result = self.thumbnail_upload()
-                if thumb_result != 0:
-                    return thumb_result
+        out, err, code = run_shell_command(command_check)
+        if code != 0:
+            self.helper_status = "ERRORED 2 D"
+            raise Exception(f"Path {data_path} is not accessible on Globus endpoint {self.endpoint_id}")
 
-            if self.ascp:
-                upload_code = self.aspera_upload()
-                if upload_code != 0 and self.globus:
-                    sys.stdout.write("Error while uploading the data with Aspera. Trying to use Globus instead...\n")
+        print(f"Success: {data_path} is accessible.\n")
+        self.obj_name = os.path.basename(data_path.rstrip(os.path.sep))
+        return True
 
-            if upload_code != 0 and self.globus and self.globus_data:
-                upload_code = self.globus_upload()
+    def validate_globus_details(self):
+        """
+        Orchestrates the sequence of Globus login, endpoint identification, and path validation.
+        """
+        try:
+            if self.login_and_identify() and self.check_local_endpoint_id() and self.validate_path_access(
+                    self.local_data_path):
+                return {'status': 'COMPLETED', 'error_message': None}
+            else:
+                return {'status': "ERRORED 2 E",
+                        'error_message': "One of the Globus Validation failed. Please check the logs."}
+        except Exception as e:
+            if not self.helper_status:
+                self.helper_status = "ERRORED 2"
+            traceback.print_exc(file=sys.stderr)
+            print(f"Error occurred while trying to validate globus details: {e}")
+            return {'status': self.helper_status, 'error_message': str(e)}
 
-            if upload_code == 0:
-                sys.stdout.write("Finished uploading the data.\n")
+    def globus_upload(self, destination_directory, destination_endpoint_id):
+        """
+        Initializes the data transfer task to the EMPIAR destination.
+        """
+        print("Initiating the Globus transfer...\n")
+        dest_path = os.path.join('/', destination_directory, 'data', self.obj_name)
 
-                sys.stdout.write("Acknowledging the completion of data upload\n")
-                # Acknowledge upload completion
-                ack_upload_summary = self.make_request(
-                    requests.post, self.acknowledge_upload,
-                    params={"entry_id": self.entry_id},
-                    headers=self.auth_header, verify=self.ignore_certificate)
-                if check_json_response(ack_upload_summary):
-                    ack_upload_summary_response_json = ack_upload_summary.json()
-                    if ack_upload_summary_response_json["response_code"] == 1:
-                        sys.stdout.write(
-                            "Upload completion acknowledged successfully\n"
-                        )
-                    else:
-                        sys.stdout.write(
-                            "Error while trying to fetch Upload status Summary. Please write to empdep-help@ebi.ac.uk\n"
-                        )
+        command_tr_init = [
+            "globus", "transfer",
+            "--label", "EMPIAR_Transfer_Task",
+            "--format", "json"
+        ]
 
-                grant_rights_exist = self.grant_rights_usernames or self.grant_rights_emails or self.grant_rights_orcids
-                grant_rights_result = 0
+        if self.dir_flag == "-r":
+            command_tr_init.append("-r")
 
-                if grant_rights_exist:
-                    grant_rights_result = self.grant_rights()
+        command_tr_init.append(f"{self.endpoint_id}:{self.local_data_path}")
+        command_tr_init.append(f"{destination_endpoint_id}:{dest_path}")
 
-                if not grant_rights_exist or (grant_rights_exist and grant_rights_result == 0):
-                    if self.stop_submit:
-                        if self.output_id_dir:
-                            return self.entry_id, self.entry_directory
-                        return upload_code
-                    else:
-                        submit_result = self.submit_deposition()
-                        return submit_result
+        out_tr_init, err_tr_init, retcode_tr_init = run_shell_command(command_tr_init)
+        if retcode_tr_init != 0 or not out_tr_init:
+            print(
+                "Globus transfer initiation was not successful. Return code: %s.\nOutput:%s\nError message: %s\n" %
+                (retcode_tr_init, out_tr_init, err_tr_init))
+            return {'status': 'ERRORED 4 A', 'error_code': 'Globus transfer initiation was not successful'}
 
-        sys.stdout.write("The deposition of the entry was not successful.\n")
-        return 1
+        try:
+            tr_init_json = json.loads(out_tr_init)
+        except ValueError:
+            print("Error while processing transfer initiation result - the string does not contain a valid "
+                  "JSON. Return code: %s.\nOutput:%s\nError message: %s\n" %
+                  (retcode_tr_init, out_tr_init, err_tr_init))
+            return {'status': 'ERRORED 4 A',
+                    'error_message': 'Globus JSON transfer initiation result does not have a valid readable JSON structure'}
+
+        if 'task_id' not in tr_init_json or not tr_init_json['task_id']:
+            print("Error in locating Globus Transfer Task ID from the transfer initiation result. "
+                  "Return code: %s.\nOutput:%s\nError message: %s\n" %
+                  (retcode_tr_init, out_tr_init, err_tr_init))
+            return {'status': 'ERRORED 4 B',
+                    'error_message': 'Error in locating Globus Transfer Task ID from the transfer initiation result.'}
+        else:
+            task_id = tr_init_json['task_id']
+
+        return self.globus_upload_wait(task_id)
+
+    def globus_upload_wait(self, task_id):
+        """
+        Monitors a Globus transfer task until completion, with a 3-day timeout.
+        """
+        timeout = 259200
+        print(f"Transfer in progress. Monitoring Task ID: {task_id}")
+        print(f"The script will wait up to 3 days for completion...")
+
+        command_tr_wait = [
+            "globus", "task", "wait",
+            task_id,
+            "--timeout", str(timeout),
+            "--heartbeat"
+        ]
+
+        out_tr_wait, err_tr_wait, retcode_tr_wait = run_shell_command(command_tr_wait)
+
+        if retcode_tr_wait != 0:
+            error_detail = err_tr_wait.decode('utf-8') if err_tr_wait else "Timeout or manual interruption"
+            print(f"Transfer monitoring stopped. Status Code: {retcode_tr_wait}\nError: {error_detail}")
+            return {
+                'status': "ERRORED 4 C",
+                'error_message': f'Globus transfer failed to complete within the 3-day window or encountered an error.'
+            }
+
+        print(f"Globus Task {task_id} completed successfully.")
+        return {'status': 'COMPLETED', 'error_message': None}
 
 
-def main(args=None):
+def main():
     """
-    Deposit the data into EMPIAR
+    Orchestrates the EMPIAR deposition workflow including validation, handshake, and transfer.
     """
-    try:
-        # Handle command line args
-        prog = "empiar-depositor"
-        usage = """
+    version = "1.6b32"
+    prog = "empiar-depositor"
+
+    usage = """
     To deposit the data into EMPIAR please follow these steps:
-    1) Create a JSON file according to the structure provided in the example (see https://empiar.org/\
-deposition/json_submission). 
-    2) Download and install ascp tool (https://downloads.asperasoft.com/download_connect/) and/or install globus-cli 
-tool (pip install globus-cli). Globus can be used as a separate upload option or as a fallback if Aspera fails.
-    3) Set the environmental variable for EMPIAR transfer password to the one that EMPIAR team has provided you with. 
-Please note that this is not the API token from 1) and is a password separate from the one that you create when 
-registering an EMPIAR user.
-        On Linux and Mac OS X execute
-        export EMPIAR_TRANSFER_PASS=<empiar_transfer_password>
-
-        On Windows execute
-        set EMPIAR_TRANSFER_PASS=<empiar_transfer_password>
-    4) Run the script as:
-       empiar-depositor [-h] [-a ASCP] [-g GLOBUS] [-f] [-e ENTRY_THUMBNAIL] [-r ENTRY_ID ENTRY_DIR] [-i] [-v] \
-EMPIAR_TOKEN JSON_INPUT DATA
+    1) Create a JSON file according to the structure provided in the example (see https://empiar.org/deposition/json_submission). 
+    2) Download and install globus-cli tool (pip install globus-cli).
+    3)Install globus-cli:
+        3.a. Please install globus-cli: pip install globus-cli
+        3.b. At times users have more collection locally, so please find your active globus local collection. Once installed globus-cli try the below commands:
+            3.b.1. globus login
+            3.b.2. globus endpoint search --filter-scope my-endpoints
+             (copy the ID of the collection that you actively use and this is local Globus endpoint ID)
+    4)Run the script as:
+       empiar-depositor [-h] [-g GLOBUS] [-f] [-e ENTRY_THUMBNAIL] [-r ENTRY_ID ENTRY_DIR] [-i] [-v] EMPIAR_TOKEN JSON_INPUT DATA
 
     Examples:
-    empiar-depositor -a ~/Applications/Aspera\ Connect.app/Contents/Resources/ascp 0123456789 ~/Documents/empiar_depo\
-sition_1.json ~/Downloads/micrographs
-    empiar-depositor -r 10 ABC123 -e ~/Downloads/dep_thumb.png 0123456789 -g 01234567-89a-bcde-fghi-jklmnopqrstu ~/Docu\
-ments/empiar_deposition_1.json ~/Downloads/micrographs
+    for running on dev:
+    empiar_depositor -g **globus_local_endpoint_id** empiar-dev-tester -p **** /Users/test/Desktop/Work/EMPIAR/empiar_depositor/working_example.json /Users/test/Desktop/Work/EMPIAR/Data/copy_1 -d
+    for running on prod:
+    empiar_depositor -g **globus_local_endpoint_id** empiar-dev-tester -p **** /Users/test/Desktop/Work/EMPIAR/empiar_depositor/working_example.json /Users/test/Desktop/Work/EMPIAR/Data/copy_1
                 """
-        version = "1.6b30"
 
-        possible_rights_help_text = "Rights can be 1 - Owner, 2 - View only, 3 - View and Edit, 4 - View, Edit and " \
-                                    "Submit. There can be only one deposition owner."
-        parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
-                                         formatter_class=argparse.RawTextHelpFormatter)
-        parser.add_argument("-h", "--help", action="help", help="Show this help message and exit.")
-        parser.add_argument("empiar_token", metavar="EMPIAR_TOKEN", help="EMPIAR API token.")
-        parser.add_argument("json_input", metavar="JSON_INPUT",
-                            help="The location of the JSON with EMPIAR deposition information.")
-        parser.add_argument("data", metavar="DATA",
-                            help="The location of the data that you would like to upload to EMPIAR. It should contain "
-                                 "directories that correspond to the image set directories specified in the JSON file.")
-        parser.add_argument("-p", "-password", action="store", default=None, const=True, nargs="?", dest="password",
-                            help="Use basic authentication (username + password) instead of token authentication. If "
-                                 "no password is provided for this argument, then the user is prompted for a password.")
-        parser.add_argument("-a", "-ascp", action="store", default=False, dest="ascp",
-                            help="The location of the ascp executable. By default it is installed in "
-                                 "~/.aspera/connect/bin directory on Linux machines, in "
-                                 "~/Applications/Aspera\ Connect.app/Contents/Resources directory on Macs and in "
-                                 "C:\\Users\<username>\AppData\Local\Programs\Aspera\Aspera Connect\\bin on Windows.")
-        parser.add_argument("-g", "--globus", action="store", default=False, dest="globus",
-                            help="Use Globus if Aspera is not specified or Aspera transfer fails. Requirement: "
-                                 "globus-cli installed and an endpoint created. Specify your unique user identifier "
-                                 "(UUID) as the input parameter.")
-        parser.add_argument("-f", "--globus-force-login", action="store_true", default=False, dest="globus_force_login",
-                            help="Force login to Globus. Login even if the globus-cli already has valid login "
-                                 "credentials. Any existing credentials will be removed from local storage and globally"
-                                 " revoked.")
+    possible_rights_help_text = "Rights can be 1 - Owner, 2 - View only, 3 - View and Edit, 4 - View, Edit and Submit. There can be only one deposition owner."
 
-        parser.add_argument("-e", "--entry-thumbnail", action="store",
-                            help="Thumbnail image that will represent your deposition on EMPIAR pages. Minimum size is "
-                                 "400 x 400, preferred format is png. If none is provided, then the image from the "
-                                 "related EMDB entry will be used.")
+    parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
+                                     formatter_class=argparse.RawTextHelpFormatter)
 
-        parser.add_argument("-gu", "--grant-rights-usernames", action="store",
-                            help="Grant rights. Provide a comma separated list of usernames and rights in format "
-                                 "<username>:<rights>. " + possible_rights_help_text)
-        parser.add_argument("-ge", "--grant-rights-emails", action="store",
-                            help="Grant rights. Provide a comma separated list of emails addresses and rights in "
-                                 "format <email_address>:<rights>. " + possible_rights_help_text)
-        parser.add_argument("-go", "--grant-rights-orcids", action="store",
-                            help="Grant rights. Provide a comma separated list of ORCiDs and rights in format "
-                                 "<orcid>:<rights>. " + possible_rights_help_text)
+    parser.add_argument("-h", "--help", action="help", help="Show this help message and exit.")
 
-        parser.add_argument("-r", "--resume", action="store", metavar=("ENTRY_ID", "ENTRY_DIR"),
-                            help="Resume Aspera upload. The entry has to be successfully created beforehand as "
-                                 "specifying EMPIAR entry ID and entry directory is required. Aspera transfer will "
-                                 "continue from where it stopped.", nargs=2)
-        parser.add_argument("-s", "--stop-submit", action="store_true", default=False, dest="stop_submit",
-                            help="Do not submit the entry once the upload has finished.")
-        parser.add_argument("-i", "--ignore-certificate", action="store_false", default=True, dest="ignore_certificate",
-                            help="Activate this flag to skip the verification of SSL certificate.")
-        parser.add_argument("-v", "--version", action="version", version=version, help="Show program's version number "
-                                                                                       "and exit.")
-        parser.add_argument("-d", "--development", action="store_true", default=False, help=argparse.SUPPRESS)
-        parser.add_argument("-dl", "--development-local", action="store_true", default=False, help=argparse.SUPPRESS)
-        parser.add_argument("-o", "--output-id-dir", action="store_true", default=False, help=argparse.SUPPRESS)
+    parser.add_argument("empiar_token", metavar="EMPIAR_TOKEN", help="EMPIAR API token.")
+    parser.add_argument("json_input", metavar="JSON_INPUT",
+                        help="The location of the JSON with EMPIAR deposition information.")
+    parser.add_argument("data", metavar="DATA",
+                        help="The location of the data that you would like to upload to EMPIAR. It should contain "
+                             "directories that correspond to the image set directories specified in the JSON file.")
 
-        if args is None:
-            args = sys.argv[1:]
-        args = parser.parse_args(args)
+    parser.add_argument("-p", "--password", action="store", default=None, const=True, nargs="?",
+                        help="EMPIAR user's password. If the argument is used without a value, the script will prompt for the password.")
 
-        json_file_exists = os.path.isfile(args.json_input)
-        if not json_file_exists:
-            sys.stdout.write("The specified JSON file does not exist\n")
-            return 1
+    parser.add_argument("-g", "--globus", required=True,
+                        help="Globus local endpoint UUID or display name from which data will be uploaded.")
 
-        if not (args.ascp or args.globus):
-            sys.stdout.write("Please select a tool for the data transfer - either Aspera or Globus\n")
-            return 1
+    parser.add_argument("-f", "--globus-force-login", action="store_true",
+                        help="Force Globus login even if a valid token is found in the local machine.")
 
-        aspera_okay = True
-        if args.ascp:
-            aspera_exists = os.path.isfile(args.ascp)
-            if aspera_exists:
-                ascp_specified = args.ascp.endswith("ascp") or args.ascp.endswith("ascp.exe")
-                if ascp_specified:
-                    process = subprocess.Popen('"' + args.ascp + '"', shell=True, stdout=subprocess.PIPE,
-                                               stderr=subprocess.STDOUT)
-                    p_out, p_err = process.communicate()
+    parser.add_argument("-e", "--entry-thumbnail", help="Thumbnail image path.")
 
-                    if not p_out or p_err:
-                        sys.stdout.write("Error while trying to check ascp. Returned output:\n" + str(p_out) + "\n" +
-                                         str(p_err) + "\n")
-                        aspera_okay = False
+    parser.add_argument("-gu", "--grant-rights-usernames",
+                        help="Grant rights. Provide a comma separated list of usernames and rights in format <username>:<rights>. %s" % possible_rights_help_text)
 
-                    ascp_is_working = b'Usage: ascp' in p_out and process.returncode == 112
-                    if not ascp_is_working:
-                        sys.stdout.write("The specified ascp does not work. Returned output:\n" + str(p_out) + "\n")
-                        aspera_okay = False
-                else:
-                    sys.stdout.write(
-                        "Please specify the correct path to ascp executable. By default it is installed in "
-                        "~/.aspera/connect/bin directory on Linux machines, in ~/Applications/Aspera\ Connect.app/"
-                        "Contents/Resources directory on Macs and in C:\\Users\<username>\AppData\Local\Programs\Aspera"
-                        "\Aspera Connect\\bin on Windows\n")
-                    aspera_okay = False
-            else:
-                sys.stdout.write("The specified Aspera executable does not exist\n")
-                aspera_okay = False
+    parser.add_argument("-ge", "--grant-rights-emails",
+                        help="Grant rights. Provide a comma separated list of emails addresses and rights in format <email_address>:<rights>. %s" % possible_rights_help_text)
 
-        if not aspera_okay:
-            if args.globus:
-                sys.stdout.write("Will try using Globus instead\n")
-            else:
-                return 1
+    parser.add_argument("-go", "--grant-rights-orcids",
+                        help="Grant rights. Provide a comma separated list of ORCiDs and rights in format <orcid>:<rights>. %s" % possible_rights_help_text)
 
-        globus_data = {}
-        endpoint_id = None
-        globus_local_username = ''
-        if args.globus:
-            # Log in to Globus
-            sys.stdout.write("Logging in to Globus...\n")
-            command_login_str = 'globus login'
-            if args.globus_force_login:
-                command_login_str += ' --force'
-            command_login = [command_login_str]
+    parser.add_argument("-r", "--resume", nargs=2, metavar=("ID", "DIR"),
+                        help="Resume the deposition and upload of an existing entry. Entry ID and the directory name "
+                             "where data will be uploaded are required.")
 
-            out_login, err_login, retcode_login = run_shell_command(command_login)
-            success_login = b'You have successfully logged in to the Globus CLI' in out_login or \
-                            b'You are already logged in' in out_login
-            if not success_login or err_login or retcode_login != 0:
-                sys.stdout.write(
-                    "Error while logging in into Globus. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                    (retcode_login, out_login, err_login))
-                return 1
-            sys.stdout.write("Successfully logged in\n")
+    parser.add_argument("-s", "--stop-submit", action="store_true",
+                        help="Stop the script before the submission step. If the argument is used, the script will "
+                             "create a deposition and upload data but it will not submit it for annotation.")
 
-            command_whoami_str = 'globus whoami'
-            command_whoami = [command_whoami_str]
-            out_whoami, err_whomai, retcode_whoami = run_shell_command(command_whoami)
-            if err_whomai or retcode_whoami !=0:
-                sys.stdout.write(
-                    "Error while fetching Globus User Identity from the local Globus Session. "
-                    "Return code: %s.\nOutput:%s\nError message: %s\n" %
-                    (retcode_whoami, out_whoami, err_whomai))
-                return 1
-            sys.stdout.write("Successfully fetched depositors Globus Identity: " + globus_local_username + "\n")
-            globus_local_username = out_whoami.decode('utf-8').strip()
+    parser.add_argument("-i", "--ignore-certificate", action="store_false", default=True, dest="ignore_certificate",
+                        help="Activate this flag to skip the verification of SSL certificate.")
 
-            # Search for the source endpoint to get its ID
-            command_es = ['globus endpoint search %s --filter-scope my-endpoints --format json' % globus_local_username]
-            out_es, err_es, retcode_es = run_shell_command(command_es)
+    parser.add_argument("-v", "--version", action="version", version=version,
+                        help="Show program's version number and exit.")
 
-            if err_es or retcode_es != 0:
-                sys.stdout.write("Error while searching for an endpoint. Return code: %s.\nOutput:%s\nError message: "
-                                 "%s\n" % (retcode_es, out_es, err_es))
-                return 1
+    parser.add_argument("-d", "--development", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("-dl", "--development-local", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("-o", "--output-id-dir", action="store_true", help=argparse.SUPPRESS)
 
-            try:
-                es_json = json.loads(out_es)
-            except ValueError:
-                sys.stdout.write(
-                    "Error while processing endpoint search result - the string does not contain a valid JSON."
-                    " Return code: %s.\nOutput:%s\nError message: %s\n" %
-                    (retcode_es, out_es, err_es))
-                return 1
+    args = parser.parse_args()
+    endpoint_id = None
 
-            # Process the results depending on whether Globus endpoint name or its ID has been provided
-            if 'DATA' in es_json and es_json['DATA']:
-                for endpoint in es_json['DATA']:
-                    if 'id' in endpoint and 'display_name' in endpoint:
-                        if endpoint['display_name'] == args.globus or args.globus == endpoint['id']:
-                            endpoint_id = endpoint['id']
+    steps = [
+        "1. Validate provided meta-data and related files",
+        "2. Validate Globus identities and collection",
+        "3. Initiate EMPIAR deposition",
+        "4. Initiate EMPIAR Globus Upload",
+        "5. Submit Entry"
+    ]
+    status = ["NOT RUN"] * 5
+    error_msg = ""
 
-                    else:
-                        sys.stdout.write(
-                            "Globus JSON endpoint search result does not have a valid structure of JSON['DATA']['id']."
-                            " Return code: %s.\nOutput:%s\nError message: %s\n" %
-                            (retcode_es, out_es, err_es))
-                        return 1
-                if not endpoint_id:
-                    sys.stdout.write(
-                        "Globus endpoint could not be found. Return code: %s.\nOutput:%s\nError message: %s\n" %
-                        (retcode_es, out_es, err_es))
-                    return 1
-            else:
-                sys.stdout.write(
-                    "Globus JSON endpoint search result does not have a valid structure of JSON['DATA']['id']."
-                    " Return code: %s.\nOutput:%s\nError message: %s\n" %
-                    (retcode_es, out_es, err_es))
-                return 1
+    print("*" * 40 + "\n")
+    print("Initiating EMPIAR deposition script:\n\n")
+    print("Workflow of the script:\n")
+    for s in steps:
+        print(f" - {s}\n")
+    print("*" * 40 + "\n")
 
-            # Check that the source endpoint contains the specified data and determine if the data is a file or a
-            # directory
-            args.data = args.data.rstrip(os.path.sep)
-            globus_data['is_dir'] = '-r'
-            dir_path, globus_data['obj_name'] = args.data.rsplit(os.path.sep, 1)
-            command_ls = ['globus ls %s:%s --format json' % (endpoint_id, args.data)]
-            out_ls, err_ls, retcode_ls = run_shell_command(command_ls)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    schema_file = os.path.join(script_dir, 'empiar_deposition.schema.json')
+    if args.development:
+        server_root = "https://wwwdev.ebi.ac.uk"
+        destination_endpoint_id = '22baf81d-120c-495f-9c83-b3f74b423950'
+    else:
+        server_root = "https://www.ebi.ac.uk"
+        destination_endpoint_id = '138b5c78-adef-4c12-89e6-2cd170bf63ed'
 
-            if retcode_ls == 1 and (args.data + ' is not a directory') in out_ls.decode('utf-8'):
-                globus_data['is_dir'] = False
-                if os.path.sep in args.data:
-                    command_ls = ['globus ls %s:%s --filter =%s --format json' % (endpoint_id, dir_path,
-                                                                                  globus_data['obj_name'])]
-                else:
-                    command_ls = ['globus ls %s: --filter =%s --format json' % (endpoint_id, args.data)]
+    try:
+        print(f"\nInitiating the Validation of meta-data and entry related file\n")
+        if not os.path.isfile(args.json_input):
+            status[0] = "ERRORED 1 A"
+            raise Exception("Error code - 1 A. Todo - Check if the metadata json file exists")
+        if not validate_empiar_json(args.json_input, schema_file):
+            status[0] = "ERRORED 1 B"
+            raise Exception(f"Error code - 1 B.Todo - Check the validation errors shown above and fix them")
+        if args.entry_thumbnail and not os.path.isfile(args.entry_thumbnail):
+            status[0] = "ERRORED 1 C"
+            raise Exception("Error code 1 C.Todo - Check if the thumbnail file exists")
+        print(f"Validation of meta-data and entry related file completed successfully\n")
+        print("*" * 40 + "\n")
+        status[0] = "COMPLETED"
 
-                out_ls, err_ls, retcode_ls = run_shell_command(command_ls)
-
-            if retcode_ls != 0 or err_ls or b'"DATA":' not in out_ls:
-                sys.stdout.write("Error while checking the existence of the object that is to be uploaded. Make sure "
-                                 "that the path to the upload corresponds to the directory sharing settings in Globus. "
-                                 "Return code: %s.\nOutput:%s\nError message: %s\n" %
-                                 (retcode_ls, out_ls, err_ls))
-                return 1
-
-        if args.entry_thumbnail:
-            thumbnail_exists = os.path.isfile(args.entry_thumbnail)
-            if not thumbnail_exists:
-                sys.stdout.write("The specified thumbnail file does not exist\n")
-                return 1
-
-        data_exists = os.path.isfile(args.data) or os.path.isdir(args.data)
-        if not data_exists:
-            sys.stdout.write("The specified location of the data does not exist\n")
-            return 1
-
-        entry_id = None
-        entry_directory = None
-        if args.resume:
-            if len(args.resume) == 2:
-                [entry_id, entry_directory] = args.resume
-            else:
-                sys.stdout.write("You have to specify both entry ID and entry directory to be able to resume the "
-                                 "deposition")
-                return 1
+        print(f"\nInitiating the Validation of Globus Identities, local collection and data\n")
+        globus_helper = GlobusHelper(
+            args.globus,
+            args.data,
+            args.globus_force_login
+        )
+        globus_validation_result = globus_helper.validate_globus_details()
+        if globus_validation_result['error_message']:
+            status[1] = globus_validation_result['status']
+            raise Exception(globus_validation_result['error_message'])
+        print(f"\nValidation of Globus Identities, local collection and data completed successfully\n")
+        print("*" * 40 + "\n")
+        status[1] = "COMPLETED"
 
         args_clean_pwd = copy.deepcopy(args)
         if args.password is not None:
@@ -896,38 +729,100 @@ ments/empiar_deposition_1.json ~/Downloads/micrographs
                 args.password = getpass('Please enter your EMPIAR password to continue:\n')
             args_clean_pwd.password = '****'
 
-        sys.stdout.write("You are performing the deposition into EMPIAR with following args: %s\n" % args_clean_pwd)
+        print("\nInitiating the deposition of the EMPIAR entry\n")
+        print("\nYou are performing the deposition into EMPIAR with following args: %s\n" % args_clean_pwd)
 
-        emp_dep = EmpiarDepositor(
+        depositor = EmpiarDepositor(
             empiar_token=args.empiar_token,
             json_input=args.json_input,
+            server_root=server_root,
             data=args.data,
-            ascp=args.ascp,
-            globus=endpoint_id,
-            globus_data=globus_data,
-            globus_force_login=args.globus_force_login,
+            globus_source_endpoint=endpoint_id,
             ignore_certificate=args.ignore_certificate,
             entry_thumbnail=args.entry_thumbnail,
-            entry_id=entry_id,
-            entry_directory=entry_directory,
+            entry_id=args.resume[0] if args.resume else None,
+            entry_directory=args.resume[1] if args.resume else None,
             stop_submit=args.stop_submit,
-            dev=args.development,
-            dev_local=args.development_local,
             password=args.password,
             output_id_dir=args.output_id_dir,
             grant_rights_usernames=args.grant_rights_usernames,
             grant_rights_emails=args.grant_rights_emails,
             grant_rights_orcids=args.grant_rights_orcids,
-            globus_local_username=globus_local_username
+            globus_local_username=globus_helper.user_identity,
+            dev=args.development
         )
+        dep_result = depositor.redeposit() if args.resume else depositor.create_new_deposition()
+        if not dep_result:
+            status[2] = "ERRORED 3 A"
+            raise Exception("Error 3 A - Failed to initiate EMPIAR deposition")
 
-        dep_result = emp_dep.deposit_data()
-        return dep_result
+        print("Initiating the thumbnail upload\n")
+        if args.entry_thumbnail and not depositor.thumbnail_upload():
+            status[2] = "ERRORED 3 B"
+            raise Exception("Error 3 B - Failed to upload thumbnail")
 
-    except requests.exceptions.RequestException as e:
-        sys.stdout.write(str(e) + '\n')
-        return 1
+        if args.grant_rights_usernames or args.grant_rights_emails or args.grant_rights_orcids:
+            print("Creating depositor grant rights\n")
+            if not depositor.grant_rights():
+                status[2] = "ERRORED 3 D"
+                raise Exception("Error 3 D - Failed to create grant rights")
+
+        print("Sharing the Globus upload directory with the user for enabling transfer\n")
+        if not depositor.share_upload_directory():
+            status[2] = "ERRORED 3 E"
+            raise Exception("Error 3 E - Globus Directory Share failed")
+
+        print("\nInitial deposition of the EMPIAR entry has completed successfully\n")
+        print("*" * 40 + "\n")
+        status[2] = "COMPLETED"
+
+        print("\nInitiating Globus upload\n")
+
+        globus_upload_result = globus_helper.globus_upload(
+            destination_directory=depositor.entry_directory,
+            destination_endpoint_id=destination_endpoint_id
+        )
+        if globus_upload_result['error_message']:
+            status[3] = globus_upload_result['status']
+            raise Exception(globus_upload_result['error_message'])
+
+        if not depositor.acknowledge_completion():
+            status[3] = "ERRORED 4 D"
+            raise Exception("Error 4 D - Acknowledgment of deposition completion failed")
+
+        print("\nGlobus Upload and Acknowledgment Completed Successfully\n")
+        print("*" * 40 + "\n")
+        status[3] = "COMPLETED"
+
+        print("\nChecking and initiating the submission of the EMPIAR entry\n")
+        if args.stop_submit:
+            print("\nSubmission of entry is not chosen so skipping this step\n")
+            status[4] = "NOT CHOSEN"
+        elif depositor.submit_deposition():
+            print("\nSubmission of the EMPIAR entry is completed successfully\n")
+            print("*" * 40 + "\n")
+            status[4] = "COMPLETED"
+        else:
+            status[4] = "ERRORED 6 A"
+            raise Exception("Error 6 A - Submission failed")
+
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+        error_msg = str(e)
+        print(error_msg)
+
+    print("\nSummary:\n")
+    for i, step in enumerate(steps):
+        print(f"{step} - {status[i]}\n")
+
+    if error_msg:
+        print(f"\n{error_msg}")
+    else:
+        print("*" * 40 + "\n")
+        print(
+            f"\nEntry **{depositor.entry_id}** deposited with data uploaded to directory **{depositor.entry_directory}** and successfully submitted to entry **{depositor.empiar_accession}**\n\n")
+        print("*" * 40 + "\n")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
