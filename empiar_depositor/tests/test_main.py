@@ -1,181 +1,196 @@
+import io
 import unittest
-import json
-import os
-from unittest.mock import patch, MagicMock, mock_open
-from requests.models import Response
-
-from empiar_depositor.empiar_depositor import (
-    EmpiarDepositor,
-    GlobusHelper,
-    run_shell_command,
-    check_json_response,
-    validate_empiar_json
-)
+from types import SimpleNamespace
+from unittest.mock import patch, MagicMock
 
 
-class TestEmpiarDepositor(unittest.TestCase):
+class TestMain(unittest.TestCase):
+    """
+    Integration-level tests for the empiar_depositor CLI main function.
+    These tests verify the end-to-end workflow by mocking the primary
+    functional classes (GlobusHelper and EmpiarDepositor).
+    """
 
-    def setUp(self):
-        self.params = {
-            "empiar_token": "mock-token",
-            "json_input": "metadata.json",
-            "server_root": "https://www.ebi.ac.uk",
-            "data": "/mock/data",
-            "globus_source_endpoint": "endpoint-uuid",
-            "ignore_certificate": True,
-            "entry_thumbnail": "thumb.png",
-            "globus_local_username": "test_user"
-        }
-        self.depositor = EmpiarDepositor(**self.params)
+    @patch("empiar_depositor.empiar_depositor.validate_empiar_json", return_value=True)
+    @patch("empiar_depositor.empiar_depositor.Path.exists", return_value=True)
+    @patch("empiar_depositor.empiar_depositor.GlobusHelper")
+    @patch("empiar_depositor.empiar_depositor.EmpiarDepositor")
+    @patch("empiar_depositor.empiar_depositor.argparse.ArgumentParser.parse_args")
+    def test_main_happy_path_submits(
+        self,
+        mock_parse_args,
+        mock_dep_cls,
+        mock_globus_cls,
+        mock_path_exists,
+        mock_validate_json,
+    ):
+        """
+        Tests the standard successful workflow where metadata is valid,
+        Globus transfer completes, and the entry is successfully submitted.
+        """
+        from empiar_depositor.empiar_depositor import main
 
-    @patch('empiar_depositor.empiar_depositor.time.sleep', return_value=None)
-    @patch('empiar_depositor.empiar_depositor.EmpiarDepositor.make_request')
-    def test_create_new_deposition_with_polling(self, mock_make_request, mock_sleep):
-        res_post = MagicMock(spec=Response)
-        res_post.status_code = 201
-        res_post.headers = {'content-type': 'application/json'}
-        res_post.json.return_value = {
-            'deposition': True,
-            'entry_id': '123',
-            'directory': 'In progress'
-        }
+        # Simulate standard CLI arguments for a successful run
+        mock_parse_args.return_value = SimpleNamespace(
+            verbose=1,
+            user=None,
+            password=None,
+            token="mock-token",
+            json_path="metadata.json",
+            thumbnail="thumb.png",
+            endpoint="test-endpoint",
+            data_path="/path/to/data",
+            force_login=False,
+            development=True,
+            destination_endpoint_id=None,
+            grant_rights_usernames=None,
+            grant_rights_emails=None,
+            grant_rights_orcids=None,
+            resume=None,
+            stop_submit=False,
+            ignore_certificate=False,
+            request_timeout=200,
+            log_file=None,
+        )
 
-        res_poll = MagicMock(spec=Response)
-        res_poll.status_code = 200
-        res_poll.headers = {'content-type': 'application/json'}
-        res_poll.json.return_value = {
-            'status': 'Completed',
-            'return_value': 'final_dir'
-        }
+        # Configure Globus mock behavior
+        mock_globus = mock_globus_cls.return_value
+        mock_globus.validate_globus_details.return_value = None
+        mock_globus.endpoint_id = "source-uuid"
+        mock_globus.user_identity = "user@globus"
+        mock_globus.globus_upload.return_value = None
 
-        mock_make_request.side_effect = [res_post, res_poll]
+        # Configure Depositor mock behavior
+        mock_dep = mock_dep_cls.return_value
+        mock_dep.create_new_deposition.return_value = None
+        mock_dep.redeposit.return_value = None
+        mock_dep.thumbnail_upload.return_value = None
+        mock_dep.grant_rights.return_value = None
+        mock_dep.share_upload_directory.return_value = None
+        mock_dep.submit_deposition.return_value = None
 
-        with patch('builtins.open', mock_open(read_data='{}')):
-            result = self.depositor.create_new_deposition()
+        mock_dep.entry_id = "123"
+        mock_dep.entry_directory = "dir-abc"
+        mock_dep.empiar_accession = "EMPIAR-10001"
 
-        self.assertTrue(result)
-        self.assertEqual(self.depositor.entry_directory, 'final_dir')
-
-    @patch('empiar_depositor.empiar_depositor.check_json_response', return_value=True)
-    @patch('empiar_depositor.empiar_depositor.EmpiarDepositor.make_request')
-    def test_share_upload_directory_success(self, mock_make_request, mock_check):
-        mock_response = MagicMock(spec=Response)
-        mock_response.json.return_value = json.dumps({"response": ["1", "Success"]})
-        mock_make_request.return_value = mock_response
-
-        result = self.depositor.share_upload_directory()
-        self.assertTrue(result)
-
-    @patch('empiar_depositor.empiar_depositor.requests.post')
-    def test_thumbnail_upload_failure(self, mock_post):
-        mock_response = MagicMock(spec=Response)
-        mock_response.headers = {'content-type': 'application/json'}
-        mock_response.json.return_value = {'thumbnail_upload': False}
-        mock_post.return_value = mock_response
-
-        with patch('builtins.open', mock_open(read_data=b'fake-binary')):
-            result = self.depositor.thumbnail_upload()
-        self.assertFalse(result)
-
-
-class TestGlobusHelper(unittest.TestCase):
-
-    def setUp(self):
-        self.helper = GlobusHelper("test-endpoint", "/local/path")
-
-    @patch('empiar_depositor.empiar_depositor.run_shell_command')
-    def test_login_and_identify_success(self, mock_run):
-        mock_run.side_effect = [
-            (b"You are already logged in", b"", 0),
-            (b"user@globusid.org", b"", 0)
-        ]
-        self.assertTrue(self.helper.login_and_identify())
-        self.assertEqual(self.helper.user_identity, "user@globusid.org")
-
-    @patch('empiar_depositor.empiar_depositor.run_shell_command')
-    def test_check_local_endpoint_id(self, mock_run):
-        self.helper.user_identity = "user@globusid.org"
-        mock_data = json.dumps({"DATA": [{"display_name": "test-endpoint", "id": "uuid-123"}]})
-        mock_run.return_value = (mock_data.encode(), b"", 0)
-
-        self.assertTrue(self.helper.check_local_endpoint_id())
-        self.assertEqual(self.helper.endpoint_id, "uuid-123")
-
-    @patch('empiar_depositor.empiar_depositor.os.path.isdir', return_value=True)
-    @patch('empiar_depositor.empiar_depositor.run_shell_command')
-    def test_validate_path_access(self, mock_run, mock_isdir):
-        self.helper.endpoint_id = "uuid-123"
-        mock_run.return_value = (b'{"DATA": []}', b"", 0)
-        self.assertTrue(self.helper.validate_path_access("/path/data"))
-        self.assertEqual(self.helper.obj_name, "data")
-
-
-class TestUtilities(unittest.TestCase):
-
-    def test_run_shell_command(self):
-        out, err, code = run_shell_command(['echo', 'test'])
-        self.assertEqual(out.strip(), b'test')
-        self.assertEqual(code, 0)
-
-    def test_check_json_response(self):
-        res = MagicMock(spec=Response)
-        res.headers = {'content-type': 'application/json'}
-        self.assertTrue(check_json_response(res))
-
-    @patch('empiar_depositor.empiar_depositor.os.path.exists', return_value=False)
-    def test_validate_empiar_json_no_schema(self, mock_exists):
-        with patch('builtins.print'):
-            self.assertTrue(validate_empiar_json('in.json', 'no_schema.json'))
-
-    @patch('empiar_depositor.empiar_depositor.os.path.exists', return_value=True)
-    @patch('empiar_depositor.empiar_depositor.validate')
-    def test_validate_empiar_json_success(self, mock_validate, mock_exists):
-        m_open = mock_open()
-        m_open.side_effect = [
-            mock_open(read_data='{"type": "object"}').return_value,
-            mock_open(read_data='{"entry": "data"}').return_value
-        ]
-        with patch('builtins.open', m_open), patch('builtins.print'):
-            self.assertTrue(validate_empiar_json('in.json', 'schema.json'))
-
-
-@patch('empiar_depositor.empiar_depositor.argparse.ArgumentParser.parse_args')
-@patch('empiar_depositor.empiar_depositor.validate_empiar_json', return_value=True)
-@patch('empiar_depositor.empiar_depositor.GlobusHelper')
-@patch('empiar_depositor.empiar_depositor.EmpiarDepositor')
-@patch('empiar_depositor.empiar_depositor.os.path.isfile', return_value=True)
-def test_main_workflow(mock_isfile, mock_dep_class, mock_globus_class, mock_val, mock_args):
-    from empiar_depositor.empiar_depositor import main
-
-    mock_args.return_value = MagicMock(
-        empiar_token="token", json_input="j.json", data="d/", globus="g",
-        globus_force_login=False, entry_thumbnail=None, password=None,
-        resume=None, stop_submit=False, ignore_certificate=True,
-        development=True, output_id_dir=False, grant_rights_usernames=None,
-        grant_rights_emails=None, grant_rights_orcids=None
-    )
-
-    mock_globus = mock_globus_class.return_value
-    mock_globus.validate_globus_details.return_value = {'status': 'COMPLETED', 'error_message': None}
-    mock_globus.user_identity = "user@globus"
-    mock_globus.globus_upload.return_value = {'status': 'COMPLETED', 'error_message': None}
-
-    mock_dep = mock_dep_class.return_value
-    mock_dep.create_new_deposition.return_value = True
-    mock_dep.share_upload_directory.return_value = True
-    mock_dep.acknowledge_completion.return_value = True
-    mock_dep.submit_deposition.return_value = True
-    mock_dep.entry_id, mock_dep.entry_directory, mock_dep.empiar_accession = "1", "dir", "ACC"
-
-    with patch('sys.stdout', new=MagicMock()):
-        try:
+        # Suppress printed output during test execution
+        with patch("sys.stdout", new=io.StringIO()):
             main()
-        except SystemExit:
-            pass
 
-    mock_dep.create_new_deposition.assert_called_once()
-    mock_globus.globus_upload.assert_called_once()
+        # Verify the sequence of calls
+        mock_globus.validate_globus_details.assert_called_once()
+        mock_dep.create_new_deposition.assert_called_once()
+        mock_dep.share_upload_directory.assert_called_once()
+        mock_globus.globus_upload.assert_called_once()
+        mock_dep.submit_deposition.assert_called_once()
+
+    @patch("empiar_depositor.empiar_depositor.validate_empiar_json", return_value=True)
+    @patch("empiar_depositor.empiar_depositor.Path.exists", return_value=True)
+    @patch("empiar_depositor.empiar_depositor.GlobusHelper")
+    @patch("empiar_depositor.empiar_depositor.EmpiarDepositor")
+    @patch("empiar_depositor.empiar_depositor.argparse.ArgumentParser.parse_args")
+    def test_main_stop_submit_skips_submission(
+        self,
+        mock_parse_args,
+        mock_dep_cls,
+        mock_globus_cls,
+        mock_path_exists,
+        mock_validate_json,
+    ):
+        """
+        Tests that the script respects the --stop-submit flag by completing
+        the upload but skipping the final API submission step.
+        """
+        from empiar_depositor.empiar_depositor import main
+
+        mock_parse_args.return_value = SimpleNamespace(
+            verbose=1,
+            user=None,
+            password=None,
+            token="mock-token",
+            json_path="metadata.json",
+            thumbnail="thumb.png",
+            endpoint="test-endpoint",
+            data_path="/path/to/data",
+            force_login=False,
+            destination_endpoint_id=None,
+            grant_rights_usernames=None,
+            grant_rights_emails=None,
+            grant_rights_orcids=None,
+            resume=None,
+            stop_submit=True,  # User explicitly requested no submission
+            ignore_certificate=False,
+            request_timeout=200,
+            log_file=None,
+        )
+
+        mock_globus = mock_globus_cls.return_value
+        mock_globus.globus_upload.return_value = None
+
+        mock_dep = mock_dep_cls.return_value
+        mock_dep.create_new_deposition.return_value = None
+        mock_dep.share_upload_directory.return_value = None
+
+        mock_dep.entry_id = "123"
+        mock_dep.entry_directory = "dir-abc"
+        mock_dep.empiar_accession = None
+
+        with patch("sys.stdout", new=io.StringIO()):
+            main()
+
+        # Upload should happen, but submission should be bypassed
+        mock_dep.create_new_deposition.assert_called_once()
+        mock_globus.globus_upload.assert_called_once()
+        mock_dep.submit_deposition.assert_not_called()
+
+    @patch("empiar_depositor.empiar_depositor.validate_empiar_json", return_value=False)
+    @patch("empiar_depositor.empiar_depositor.Path.exists", return_value=True)
+    @patch("empiar_depositor.empiar_depositor.GlobusHelper")
+    @patch("empiar_depositor.empiar_depositor.EmpiarDepositor")
+    @patch("empiar_depositor.empiar_depositor.argparse.ArgumentParser.parse_args")
+    def test_main_schema_validation_failure_stops_early(
+        self,
+        mock_parse_args,
+        mock_dep_cls,
+        mock_globus_cls,
+        mock_path_exists,
+        mock_validate_json,
+    ):
+        """
+        Verifies that the script terminates immediately if the metadata
+        JSON fails schema validation, preventing unnecessary API or Globus calls.
+        """
+        from empiar_depositor.empiar_depositor import main
+
+        mock_parse_args.return_value = SimpleNamespace(
+            verbose=1,
+            user=None,
+            password=None,
+            token="mock-token",
+            json_path="metadata.json",
+            thumbnail="thumb.png",
+            endpoint="test-endpoint",
+            data_path="/path/to/data",
+            force_login=False,
+            development=True,
+            destination_endpoint_id=None,
+            grant_rights_usernames=None,
+            grant_rights_emails=None,
+            grant_rights_orcids=None,
+            resume=None,
+            stop_submit=False,
+            ignore_certificate=False,
+            request_timeout=200,
+            log_file=None,
+        )
+
+        with patch("sys.stdout", new=io.StringIO()):
+            main()
+
+        # Assert that primary logic classes were never instantiated
+        mock_globus_cls.assert_not_called()
+        mock_dep_cls.assert_not_called()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -4,17 +4,46 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "empiar-depositor"
-version = "1.6.30"
-# ... other metadata ...
+version = "1.6.32"
+description = "Script for depositing the data into EMPIAR using EMPIAR API"
+readme = "README.rst"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}
+keywords = ["EMPIAR", "deposition", "microscopy"]
+
+authors = [
+    {name = "Andrii Iudin", email = "andrii@ebi.ac.uk"},
+    {name = "Sriram Somasundharam", email = "sriram@ebi.ac.uk"}
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "requests>=2.25.0",
+    "jsonschema>=4.0.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "coverage",
+]
 
 [project.scripts]
-# Command = "package_folder.filename:function"
 empiar-depositor = "empiar_depositor.empiar_depositor:main"
 
 [tool.setuptools]
-# Automatically find the empiar_depositor folder
 packages = ["empiar_depositor"]
 
 [tool.setuptools.package-data]
-# Ensure the schema is included in the build
 "empiar_depositor" = ["*.json"]
