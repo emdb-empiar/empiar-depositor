@@ -547,7 +547,7 @@ def main():
     """
     Orchestrates the EMPIAR deposition workflow including validation, handshake, and transfer.
     """
-    version = "1.6.32"
+    version = "1.6b32"
     prog = "empiar-depositor"
 
     usage = """
