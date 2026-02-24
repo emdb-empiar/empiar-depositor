@@ -1,7 +1,7 @@
 import io
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 class TestMain(unittest.TestCase):
@@ -41,7 +41,7 @@ class TestMain(unittest.TestCase):
             endpoint="test-endpoint",
             data_path="/path/to/data",
             force_login=False,
-            development=True,
+            production=False,
             destination_endpoint_id=None,
             grant_rights_usernames=None,
             grant_rights_emails=None,
@@ -113,6 +113,7 @@ class TestMain(unittest.TestCase):
             endpoint="test-endpoint",
             data_path="/path/to/data",
             force_login=False,
+            production=False,
             destination_endpoint_id=None,
             grant_rights_usernames=None,
             grant_rights_emails=None,
@@ -125,6 +126,9 @@ class TestMain(unittest.TestCase):
         )
 
         mock_globus = mock_globus_cls.return_value
+        mock_globus.validate_globus_details.return_value = None
+        mock_globus.endpoint_id = "source-uuid"
+        mock_globus.user_identity = "user@globus"
         mock_globus.globus_upload.return_value = None
 
         mock_dep = mock_dep_cls.return_value
@@ -172,7 +176,7 @@ class TestMain(unittest.TestCase):
             endpoint="test-endpoint",
             data_path="/path/to/data",
             force_login=False,
-            development=True,
+            production=False,
             destination_endpoint_id=None,
             grant_rights_usernames=None,
             grant_rights_emails=None,
@@ -185,7 +189,11 @@ class TestMain(unittest.TestCase):
         )
 
         with patch("sys.stdout", new=io.StringIO()):
-            main()
+            with self.assertRaises(SystemExit) as cm:
+                main()
+
+        # main() should exit non-zero on failure
+        self.assertEqual(cm.exception.code, 1)
 
         # Assert that primary logic classes were never instantiated
         mock_globus_cls.assert_not_called()
