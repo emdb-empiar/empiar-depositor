@@ -49,7 +49,23 @@ class CliError(Exception):
 
 
 def _ensure(condition: bool, *, code: str, step: str, message: str, detail: Optional[str] = None) -> None:
-    """Helper to raise CliError if a condition is not met."""
+    """Validates a condition and raises a structured CliError if it fails.
+
+    This helper function is used to enforce prerequisites at various stages of the
+    deposition workflow. If the provided condition is False, it raises a CliError
+    containing the specified error code and context.
+
+    Args:
+        condition: The boolean condition to check.
+        code: A stable, machine-readable error code (e.g., 'E_API_CREATE_HTTP').
+        step: The current workflow step where the check is occurring.
+        message: A human-readable description of the error.
+        detail: Optional additional technical context or raw error output.
+
+    Raises:
+        CliError: If the condition is False, initialized with the provided
+            code, step, message, and detail.
+    """
     if not condition:
         raise CliError(code=code, step=step, message=message, detail=detail)
 
@@ -87,35 +103,34 @@ def check_json_response(response):
     return content_type.lower().startswith("application/json")
 
 
-def validate_empiar_json(json_path, schema_path, logger):
-    """
-    Validates the deposition JSON metadata against the official EMPIAR schema.
-    """
-    json_path = Path(json_path)
-    schema_path = Path(schema_path)
+def load_json_file(file_path: Path, logger):
+    """Handles only the reading and parsing of the file."""
+    try:
+        with open(file_path, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        logger.error(f"Invalid JSON syntax in: {file_path}")
+        return None
 
-    if not schema_path.exists():
-        logger.warning("Schema file not found at %s. Skipping schema validation.", schema_path)
+
+def validate_empiar_json(data_dict, schema_dict, logger):
+    """
+    Validates already-loaded Python dictionaries against each other.
+    """
+    try:
+        validate(instance=data_dict, schema=schema_dict)
+        logger.info("JSON schema validation successful.\n")
         return True
 
-    try:
-        with open(schema_path, 'r') as s_file, open(json_path, 'r') as i_file:
-            schema_data = json.load(s_file)
-            input_data = json.load(i_file)
-            validate(instance=input_data, schema=schema_data)
-            logger.info("JSON schema validation successful.\n")
-            return True
-
     except exceptions.ValidationError as ve:
-        logger.error(f"\n[!] Metadata Validation Error in '{json_path}':\n")
-        logger.error(f"    - Field Path: {ve.json_path}\n")
+        logger.error(f"\n[!] Metadata Validation Error in Metadata file':\n")
         logger.error(f"    - Reason: {ve.message}\n")
         return False
     except json.JSONDecodeError:
-        logger.exception("Could not parse JSON file '%s'. Check syntax.", json_path)
+        logger.exception("Could not parse Metadata JSON file. Check syntax.")
         return False
     except Exception:
-        logger.exception("Unexpected validation error while validating '%s'.", json_path)
+        logger.exception("Unexpected validation error while validating.")
         return False
 
 
@@ -146,20 +161,21 @@ class EmpiarDepositor:
     ):
         """Initializes the depositor with API endpoints and authentication details."""
         self.server_root = server_root
-        self.deposition_url = self.server_root + "/empiar/deposition/api/deposit_entry/"
-        self.redeposit_url = self.server_root + "/empiar/deposition/api/redeposit_entry/"
-        self.thumbnail_url = self.server_root + "/empiar/deposition/api/image_upload/"
-        self.submission_url = self.server_root + "/empiar/deposition/api/submit_entry/"
-        self.grant_rights_url = self.server_root + "/empiar/deposition/api/grant_rights/"
-        self.globus_directory_share_url = self.server_root + "/empiar/deposition/api/share_globus_directory/"
-        self.fetch_entry_upload_directory = self.server_root + "/empiar/deposition/api/fetch_entry_upload_directory/"
-        self.acknowledge_upload = self.server_root + "/empiar/deposition/api/acknowledge_upload/"
+        self.deposition_url = self.server_root + "/deposit_entry/"
+        self.redeposit_url = self.server_root + "/redeposit_entry/"
+        self.thumbnail_url = self.server_root + "/image_upload/"
+        self.submission_url = self.server_root + "/submit_entry/"
+        self.grant_rights_url = self.server_root + "/grant_rights/"
+        self.globus_directory_share_url = self.server_root + "/share_globus_directory/"
+        self.fetch_entry_upload_directory = self.server_root + "/fetch_entry_upload_directory/"
+        self.acknowledge_upload = self.server_root + "/acknowledge_upload/"
 
         self.username = empiar_token if password else None
         self.password = password
         self.auth_header = {'Authorization': 'Token ' + empiar_token} if not password else {}
         self.deposition_headers = {'Content-type': 'application/json'}
         self.deposition_headers.update(self.auth_header)
+        self.basic_auth = HTTPBasicAuth(self.username, self.password) if password else None
 
         self.json_input = json_input
         self.data = data
@@ -193,7 +209,7 @@ class EmpiarDepositor:
         Executes an HTTP request with either Token or Basic authentication.
         """
         if self.password:
-            return request_method(*args, auth=HTTPBasicAuth(self.username, self.password), **kwargs)
+            return request_method(*args, auth=self.basic_auth, **kwargs)
         return request_method(*args, **kwargs)
 
     def check_status_and_return_poll_result(self, check_url, url_parameter, max_try=10):
@@ -492,19 +508,19 @@ class GlobusHelper:
         dest_path = os.path.join('/', destination_directory, 'data', self.obj_name)
         task_label = f"EMPIAR Transfer Task {entry_reference}"
 
-        command_tr_init = [
+        globus_transfer_command = [
             "globus", "transfer",
             "--label", task_label,
             "--format", "json"
         ]
 
         if self.dir_flag == "-r":
-            command_tr_init.append("-r")
+            globus_transfer_command.append("-r")
 
-        command_tr_init.append(f"{self.endpoint_id}:{self.endpoint_path}")
-        command_tr_init.append(f"{destination_endpoint_id}:{dest_path}")
+        globus_transfer_command.append(f"{self.endpoint_id}:{self.endpoint_path}")
+        globus_transfer_command.append(f"{destination_endpoint_id}:{dest_path}")
 
-        out_tr_init, err_tr_init, retcode_tr_init = run_shell_command(command_tr_init)
+        out_tr_init, err_tr_init, retcode_tr_init = run_shell_command(globus_transfer_command)
         if retcode_tr_init != 0 or not out_tr_init:
             raise CliError(code="E_GLOBUS_TRANSFER", step=step, message="Globus transfer command failed",
                            detail=(out_tr_init + b"\n" + err_tr_init).decode("utf-8", "replace")[:1200])
@@ -618,7 +634,7 @@ def main():
     log.propagate = False
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    schema_path = os.path.join(script_dir, 'empiar_deposition.schema.json')
+    schema_path = Path(os.path.join(script_dir, 'empiar_deposition.schema.json'))
     steps = [
         "1. Validate provided meta-data and related files",
         "2. Validate Globus identities and collection",
@@ -631,10 +647,10 @@ def main():
     error_msg = ""
 
     if args.production:
-        server_root = "https://www.ebi.ac.uk"
+        server_root = "https://www.ebi.ac.uk/empiar/deposition/api"
         destination_endpoint_id = '138b5c78-adef-4c12-89e6-2cd170bf63ed'
     else:
-        server_root = "https://wwwdev.ebi.ac.uk"
+        server_root = "https://wwwdev.ebi.ac.uk/empiar/deposition/api"
         destination_endpoint_id = '22baf81d-120c-495f-9c83-b3f74b423950'
 
     if not args.token:
@@ -655,15 +671,24 @@ def main():
     try:
         log.info(f"\nInitiating Validation of meta-data and entry related files\n")
         json_path = Path(args.json_path)
-        _ensure(json_path.exists(), code="E_INPUT_JSON_PATH", step="cli.inputs",
+        _ensure(json_path.is_file(), code="E_INPUT_JSON_PATH", step="cli.inputs",
                 message=f"Metadata JSON file not found", detail=str(json_path))
+        _ensure(schema_path.is_file(), code="E_INPUT_JSON_PATH", step="cli.inputs",
+                message=f"Metadata JSON file not found", detail=str(json_path))
+
+        meta_data_json = load_json_file(json_path, log)
+        schema_data_json = load_json_file(schema_path, log)
+        _ensure(meta_data_json, code="E_INPUT_JSON_DATA", step="cli.inputs",
+                message=f"Could not fetch Metadata JSON from the file", detail=str(json_path))
+        _ensure(schema_data_json, code="E_SCHEMA_DATA", step="cli",
+                message=f"Could not fetch Schema JSON from the file", detail=str(schema_path))
 
         if args.thumbnail:
             thumbnail_path = Path(args.thumbnail)
-            _ensure(thumbnail_path.exists(), code="E_INPUT_THUMB_PATH", step="cli.inputs",
+            _ensure(thumbnail_path.is_file(), code="E_INPUT_THUMB_PATH", step="cli.inputs",
                     message=f"Entry thumbnail file not found", detail=str(thumbnail_path))
 
-        if not validate_empiar_json(json_path, schema_path, log):
+        if not validate_empiar_json(meta_data_json, schema_data_json, log):
             raise CliError(code="E_SCHEMA", step="cli.validation",
                            message="Metadata JSON does not validate against schema")
 
@@ -688,6 +713,12 @@ def main():
         log.info("\nInitiating the deposition of the EMPIAR entry\n")
         current_step = 2
 
+        resume_id, resume_dir = None, None
+        if args.resume:
+            _ensure(len(args.resume) >= 2, code="E_ARGS_RESUME", step="cli.args",
+                    message="Resume requires both Entry ID and Directory")
+            resume_id, resume_dir = args.resume[0], args.resume[1]
+
         depositor = EmpiarDepositor(
             empiar_token=args.token,
             json_input=args.json_path,
@@ -696,8 +727,8 @@ def main():
             globus_source_endpoint=globus_helper.endpoint_id,
             ignore_certificate=args.ignore_certificate,
             entry_thumbnail=args.thumbnail,
-            entry_id=args.resume[0] if args.resume else None,
-            entry_directory=args.resume[1] if args.resume else None,
+            entry_id=resume_id,
+            entry_directory=resume_dir,
             stop_submit=args.stop_submit,
             password=args.password,
             grant_rights_usernames=args.grant_rights_usernames,
@@ -746,33 +777,30 @@ def main():
             status[4] = "COMPLETED"
 
     except Exception as e:
-        log.exception("Unexpected error occurred during execution.")
+        log.exception(f"Unexpected error occurred during execution. {e}")
         status[current_step] = "ERRORED"
-        error_msg = str(e)
+        raise e
 
     log.info("\nSummary:\n")
     for i, step_text in enumerate(steps):
         log.info(f"{step_text} - {status[i]}\n")
 
-    if not error_msg:
-        log.info("*" * 40 + "\n")
-        log.info(
-            f"Entry **{depositor.entry_id}** deposited to **{depositor.entry_directory}** and submitted as **{depositor.empiar_accession}**\n")
-        log.info("*" * 40 + "\n")
+    log.info("*" * 40 + "\n")
+    log.info(
+        f"Entry **{depositor.entry_id}** deposited to **{depositor.entry_directory}** and submitted as **{depositor.empiar_accession}**\n")
+    log.info("*" * 40 + "\n")
 
-    if error_msg:
-        sys.exit(1)
 
 
 if __name__ == "__main__":
     try:
         main()
     except CliError as e:
-        logging.error(str(e))
+        logging.error(f"\nFATAL: {e}")
         sys.exit(2)
     except KeyboardInterrupt:
-        logging.error("[E_INTERRUPT] Interrupted by user.")
+        logging.error("\n[E_INTERRUPT] Operation cancelled by user.")
         sys.exit(130)
-    except Exception:
-        traceback.print_exc()
+    except Exception as e:
+        logging.exception(f"Unexpected error occurred during execution. {e}")
         sys.exit(1)
