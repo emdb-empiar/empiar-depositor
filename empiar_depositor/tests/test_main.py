@@ -11,8 +11,9 @@ class TestMain(unittest.TestCase):
     functional classes (GlobusHelper and EmpiarDepositor).
     """
 
+    @patch("empiar_depositor.empiar_depositor.load_json_file")
     @patch("empiar_depositor.empiar_depositor.validate_empiar_json", return_value=True)
-    @patch("empiar_depositor.empiar_depositor.Path.exists", return_value=True)
+    @patch("empiar_depositor.empiar_depositor.Path.is_file", return_value=True)
     @patch("empiar_depositor.empiar_depositor.GlobusHelper")
     @patch("empiar_depositor.empiar_depositor.EmpiarDepositor")
     @patch("empiar_depositor.empiar_depositor.argparse.ArgumentParser.parse_args")
@@ -21,8 +22,9 @@ class TestMain(unittest.TestCase):
         mock_parse_args,
         mock_dep_cls,
         mock_globus_cls,
-        mock_path_exists,
+        mock_path_is_file,
         mock_validate_json,
+        mock_load_json_file,
     ):
         """
         Tests the standard successful workflow where metadata is valid,
@@ -52,6 +54,12 @@ class TestMain(unittest.TestCase):
             request_timeout=200,
             log_file=None,
         )
+
+        # main() loads metadata + schema via load_json_file
+        mock_load_json_file.side_effect = [
+            {"entry": "data"},          # metadata.json
+            {"type": "object"},         # empiar_deposition.schema.json
+        ]
 
         # Configure Globus mock behavior
         mock_globus = mock_globus_cls.return_value
@@ -84,8 +92,9 @@ class TestMain(unittest.TestCase):
         mock_globus.globus_upload.assert_called_once()
         mock_dep.submit_deposition.assert_called_once()
 
+    @patch("empiar_depositor.empiar_depositor.load_json_file")
     @patch("empiar_depositor.empiar_depositor.validate_empiar_json", return_value=True)
-    @patch("empiar_depositor.empiar_depositor.Path.exists", return_value=True)
+    @patch("empiar_depositor.empiar_depositor.Path.is_file", return_value=True)
     @patch("empiar_depositor.empiar_depositor.GlobusHelper")
     @patch("empiar_depositor.empiar_depositor.EmpiarDepositor")
     @patch("empiar_depositor.empiar_depositor.argparse.ArgumentParser.parse_args")
@@ -94,8 +103,9 @@ class TestMain(unittest.TestCase):
         mock_parse_args,
         mock_dep_cls,
         mock_globus_cls,
-        mock_path_exists,
+        mock_path_is_file,
         mock_validate_json,
+        mock_load_json_file,
     ):
         """
         Tests that the script respects the --stop-submit flag by completing
@@ -125,6 +135,11 @@ class TestMain(unittest.TestCase):
             log_file=None,
         )
 
+        mock_load_json_file.side_effect = [
+            {"entry": "data"},          # metadata.json
+            {"type": "object"},         # empiar_deposition.schema.json
+        ]
+
         mock_globus = mock_globus_cls.return_value
         mock_globus.validate_globus_details.return_value = None
         mock_globus.endpoint_id = "source-uuid"
@@ -147,8 +162,9 @@ class TestMain(unittest.TestCase):
         mock_globus.globus_upload.assert_called_once()
         mock_dep.submit_deposition.assert_not_called()
 
+    @patch("empiar_depositor.empiar_depositor.load_json_file")
     @patch("empiar_depositor.empiar_depositor.validate_empiar_json", return_value=False)
-    @patch("empiar_depositor.empiar_depositor.Path.exists", return_value=True)
+    @patch("empiar_depositor.empiar_depositor.Path.is_file", return_value=True)
     @patch("empiar_depositor.empiar_depositor.GlobusHelper")
     @patch("empiar_depositor.empiar_depositor.EmpiarDepositor")
     @patch("empiar_depositor.empiar_depositor.argparse.ArgumentParser.parse_args")
@@ -157,14 +173,15 @@ class TestMain(unittest.TestCase):
         mock_parse_args,
         mock_dep_cls,
         mock_globus_cls,
-        mock_path_exists,
+        mock_path_is_file,
         mock_validate_json,
+        mock_load_json_file,
     ):
         """
         Verifies that the script terminates immediately if the metadata
         JSON fails schema validation, preventing unnecessary API or Globus calls.
         """
-        from empiar_depositor.empiar_depositor import main
+        from empiar_depositor.empiar_depositor import main, CliError
 
         mock_parse_args.return_value = SimpleNamespace(
             verbose=1,
@@ -188,12 +205,16 @@ class TestMain(unittest.TestCase):
             log_file=None,
         )
 
+        mock_load_json_file.side_effect = [
+            {"entry": "data"},          # metadata.json
+            {"type": "object"},         # empiar_deposition.schema.json
+        ]
+
         with patch("sys.stdout", new=io.StringIO()):
-            with self.assertRaises(SystemExit) as cm:
+            with self.assertRaises(CliError) as cm:
                 main()
 
-        # main() should exit non-zero on failure
-        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(cm.exception.code, "E_SCHEMA")
 
         # Assert that primary logic classes were never instantiated
         mock_globus_cls.assert_not_called()

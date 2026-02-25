@@ -1,6 +1,7 @@
-import io
+import json
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
+from types import SimpleNamespace
+from unittest.mock import patch, MagicMock
 from requests.models import Response
 
 from empiar_depositor.empiar_depositor import (
@@ -36,6 +37,8 @@ class TestUtilities(unittest.TestCase):
         with self.assertRaises(CliError) as ctx:
             _ensure(False, code="E_FAIL", step="x", message="nope", detail="d")
         self.assertEqual(ctx.exception.code, "E_FAIL")
+        self.assertEqual(ctx.exception.step, "x")
+        self.assertIn("nope", str(ctx.exception))
 
     @patch("empiar_depositor.empiar_depositor.subprocess.Popen")
     def test_run_shell_command_success(self, mock_popen):
@@ -44,12 +47,13 @@ class TestUtilities(unittest.TestCase):
         ensuring stdout and exit codes are captured correctly.
         """
         proc = MagicMock()
-        proc.communicate.return_value = (b"out", b"")
+        proc.communicate.return_value = (b"out", None)
         proc.returncode = 0
         mock_popen.return_value = proc
 
         out, err, code = run_shell_command(["echo", "hi"])
         self.assertEqual(out, b"out")
+        self.assertIsNone(err)
         self.assertEqual(code, 0)
 
     @patch("empiar_depositor.empiar_depositor.subprocess.Popen", side_effect=FileNotFoundError())
@@ -59,6 +63,7 @@ class TestUtilities(unittest.TestCase):
         is missing from the system path.
         """
         out, err, code = run_shell_command(["globus", "whoami"])
+        self.assertEqual(out, b"")
         self.assertEqual(code, 127)
         self.assertIn(b"globus-cli", err)
 
@@ -71,6 +76,15 @@ class TestUtilities(unittest.TestCase):
         res.headers = {"content-type": "application/json"}
         self.assertTrue(check_json_response(res))
 
+    def test_check_json_response_accepts_json_with_charset(self):
+        """
+        Confirms that check_json_response correctly asserts JSON
+        content-types
+        """
+        res = Response()
+        res.headers = {"content-type": "application/json; charset=utf-8"}
+        self.assertTrue(check_json_response(res))
+
     def test_check_json_response_rejects_non_json(self):
         """
         Confirms that check_json_response correctly rejects non-JSON
@@ -80,50 +94,64 @@ class TestUtilities(unittest.TestCase):
         res.headers = {"content-type": "text/html"}
         self.assertFalse(check_json_response(res))
 
-    @patch("empiar_depositor.empiar_depositor.Path.exists", return_value=False)
-    def test_validate_empiar_json_schema_missing_returns_true(self, mock_exists):
+    def test_check_json_response_rejects_non_response_object(self):
         """
-        Tests that JSON validation gracefully skips and returns True if the
-        schema file is not found, logging a warning instead of failing.
+        Confirms that check_json_response correctly rejects non-JSON
         """
-        logger = MagicMock()
-        ok = validate_empiar_json("in.json", "schema.json", logger)
-        self.assertTrue(ok)
-        logger.warning.assert_called()
+        self.assertFalse(check_json_response({"headers": {"content-type": "application/json"}}))
 
-    @patch("empiar_depositor.empiar_depositor.Path.exists", return_value=True)
     @patch("empiar_depositor.empiar_depositor.validate")
-    def test_validate_empiar_json_success(self, mock_validate, mock_exists):
+    def test_validate_empiar_json_success(self, mock_validate):
         """
-        Tests a successful metadata validation scenario where both the schema
-        and input JSON are valid.
+        validate_empiar_json should return True when jsonschema.validate succeeds.
         """
         logger = MagicMock()
-        m_open = mock_open()
-        # Mocking sequential opens: first for the schema, second for the input file
-        m_open.side_effect = [
-            mock_open(read_data='{"type": "object"}').return_value,
-            mock_open(read_data='{"entry": "data"}').return_value,
-        ]
-        with patch("builtins.open", m_open):
-            ok = validate_empiar_json("in.json", "schema.json", logger)
+        ok = validate_empiar_json({"a": 1}, {"type": "object"}, logger)
         self.assertTrue(ok)
         mock_validate.assert_called_once()
+        logger.info.assert_called()  # "JSON schema validation successful.\n"
 
-    @patch("empiar_depositor.empiar_depositor.Path.exists", return_value=True)
-    def test_validate_empiar_json_invalid_json_returns_false(self, mock_exists):
+    @patch("empiar_depositor.empiar_depositor.validate")
+    def test_validate_empiar_json_validation_error_returns_false(self, mock_validate):
         """
-        Ensures that validation returns False and logs an exception if the
-        input file contains malformed JSON.
+        validate_empiar_json should return False and log an error on schema ValidationError.
         """
+        class FakeValidationError(Exception):
+            def __init__(self, message):
+                self.message = message
+
         logger = MagicMock()
-        m_open = mock_open()
-        m_open.side_effect = [
-            mock_open(read_data='{"type": "object"}').return_value,
-            mock_open(read_data="{bad json").return_value,
-        ]
-        with patch("builtins.open", m_open):
-            ok = validate_empiar_json("in.json", "schema.json", logger)
+
+        with patch(
+            "empiar_depositor.empiar_depositor.exceptions",
+            new=SimpleNamespace(ValidationError=FakeValidationError),
+        ):
+            mock_validate.side_effect = FakeValidationError("bad field")
+            ok = validate_empiar_json({"a": 1}, {"type": "object"}, logger)
+
+        self.assertFalse(ok)
+        logger.error.assert_called()  # it logs the formatted validation error
+
+    @patch("empiar_depositor.empiar_depositor.validate")
+    def test_validate_empiar_json_json_decode_error_returns_false(self, mock_validate):
+        """validate_empiar_json should return False and log exception on JSONDecodeError."""
+        logger = MagicMock()
+        mock_validate.side_effect = json.JSONDecodeError("msg", doc="{}", pos=1)
+
+        ok = validate_empiar_json({"a": 1}, {"type": "object"}, logger)
+
+        self.assertFalse(ok)
+        logger.exception.assert_called()
+
+    @patch("empiar_depositor.empiar_depositor.validate")
+    def test_validate_empiar_json_unexpected_error_returns_false(self, mock_validate):
+        """validate_empiar_json should return False and log exception on any unexpected error."""
+        logger = MagicMock()
+        logger = MagicMock()
+        mock_validate.side_effect = RuntimeError("boom")
+
+        ok = validate_empiar_json({"a": 1}, {"type": "object"}, logger)
+
         self.assertFalse(ok)
         logger.exception.assert_called()
 
