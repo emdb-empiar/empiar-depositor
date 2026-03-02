@@ -18,15 +18,31 @@ import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable, Any
 
 import requests
 import subprocess
 import sys
 import argparse
-from getpass import getpass
 from requests.auth import HTTPBasicAuth
 from requests.models import Response
+
+# --- Settings ---------------------------------------------------------------
+# Centralized environment configuration. Keep defaults here so the workflow
+# doesn't hide control-flow details inside main().
+OUTPUT_MODE = 'text'
+
+SETTINGS: dict[str, dict[str, str]] = {
+    "production": {
+        "server_root": "https://www.ebi.ac.uk/empiar/deposition/api",
+        "destination_endpoint_id": "138b5c78-adef-4c12-89e6-2cd170bf63ed",
+    },
+    "development": {
+        "server_root": "https://wwwdev.ebi.ac.uk/empiar/deposition/api",
+        "destination_endpoint_id": "22baf81d-120c-495f-9c83-b3f74b423950",
+    },
+}
+
 
 # Validation utility
 try:
@@ -46,6 +62,45 @@ class CliError(Exception):
     def __str__(self) -> str:
         base = f"[{self.code}] ({self.step}) {self.message}"
         return f"{base}\n{self.detail}" if self.detail else base
+
+
+@dataclass(frozen=True)
+class Step:
+    """A single workflow step in the CLI."""
+    id: str
+    name: str
+    run: Callable[[], None]
+    should_run: Callable[[], bool] = lambda: True
+
+
+def _kv_escape(value: object) -> str:
+    """Escape a value for key=value CLI output."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    s = str(value)
+    if any(ch.isspace() for ch in s) or any(ch in s for ch in ['"', "=", "\n", "\t"]):
+        return json.dumps(s, ensure_ascii=False)
+    return s
+
+
+def emit_result(record: dict, *, stream) -> None:
+    """Emit exactly one final result record, formatted according to OUTPUT_MODE."""
+    if OUTPUT_MODE == "json":
+        print(json.dumps(record, ensure_ascii=False), file=stream)
+        return
+
+    parts = ["RESULT"]
+    for k, v in record.items():
+        if v is None:
+            continue
+        parts.append(f"{k}={_kv_escape(v)}")
+
+    # kv and text both use the same stable 'RESULT key=value ...' line.
+    print(" ".join(parts), file=stream)
 
 
 def _ensure(condition: bool, *, code: str, step: str, message: str, detail: Optional[str] = None) -> None:
@@ -141,23 +196,23 @@ class EmpiarDepositor:
     """
 
     def __init__(
-            self,
-            empiar_token,
-            json_input,
-            server_root,
-            data,
-            globus_source_endpoint,
-            ignore_certificate,
-            entry_thumbnail,
-            entry_id=None,
-            entry_directory=None,
-            stop_submit=False,
-            password=None,
-            grant_rights_usernames=None,
-            grant_rights_emails=None,
-            grant_rights_orcids=None,
-            globus_local_username=None,
-            log=None
+        self,
+        empiar_token,
+        json_input,
+        server_root,
+        data,
+        globus_source_endpoint,
+        ignore_certificate,
+        entry_thumbnail,
+        entry_id=None,
+        entry_directory=None,
+        stop_submit=False,
+        password=None,
+        grant_rights_usernames=None,
+        grant_rights_emails=None,
+        grant_rights_orcids=None,
+        globus_local_username=None,
+        log=None
     ):
         """Initializes the depositor with API endpoints and authentication details."""
         self.server_root = server_root
@@ -334,7 +389,9 @@ class EmpiarDepositor:
                     message=f"Failed to share entry directory: HTTP {share_directory_response.status_code}",
                     detail=share_directory_response.text[:800])
 
-            share_directory_response_json = json.loads(share_directory_response.json())
+            share_directory_response_json = share_directory_response.json()
+            if isinstance(share_directory_response_json, str):
+                share_directory_response_json = json.loads(share_directory_response_json)
             if "response" in share_directory_response_json:
                 if (share_directory_response_json["response"][0] == "1" or
                         share_directory_response_json["response"][0] == "5"):
@@ -570,20 +627,25 @@ def main():
     To deposit the data into EMPIAR please follow these steps:
     1) Create a JSON file according to the structure provided in the official schema.
     2) Download and install globus-cli tool (pip install globus-cli).
-    3) Run the script providing the token, metadata JSON, and path to data.
+    3) Run the script providing authentication, metadata JSON, and path to data.
                 """
 
     possible_rights_help_text = "Rights: 1-Owner, 2-View, 3-Edit, 4-Submit. Only one owner allowed."
 
-    parser = argparse.ArgumentParser(prog=prog, usage=usage, add_help=False,
-                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        usage=usage,
+        add_help=False,
+        formatter_class=argparse.RawTextHelpFormatter
+    )
 
     parser.add_argument("-h", "--help", action="help", help="Show this help message and exit.")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity.")
+    parser.add_argument("--output", choices=["text", "json", "kv"], default="text", help="Output format for final result / fatal error (text, json, or kv).")
 
-    parser.add_argument("--user", required=False, help="EMPIAR username")
-    parser.add_argument("--password", required=False, help="EMPIAR password")
-    parser.add_argument("--token", required=True, help="EMPIAR API token")
+    # Auth: either Token auth (--token) OR Basic auth (--user + EMPIAR_PASSWORD)
+    parser.add_argument("--user", required=False, help="EMPIAR username (for basic auth). Password is read from env EMPIAR_PASSWORD.")
+    parser.add_argument("--token", required=False, help="EMPIAR API token (for token auth)")
 
     parser.add_argument("--metadata", dest="json_path", required=True, help="Path to deposition JSON metadata.")
     parser.add_argument("--thumbnail", required=True, help="Path to thumbnail image.")
@@ -596,8 +658,10 @@ def main():
 
     parser.add_argument("-gu", "--grant-rights-usernames",
                         help="Grant rights to usernames. %s" % possible_rights_help_text)
-    parser.add_argument("-ge", "--grant-rights-emails", help="Grant rights to emails. %s" % possible_rights_help_text)
-    parser.add_argument("-go", "--grant-rights-orcids", help="Grant rights to ORCiDs. %s" % possible_rights_help_text)
+    parser.add_argument("-ge", "--grant-rights-emails",
+                        help="Grant rights to emails. %s" % possible_rights_help_text)
+    parser.add_argument("-go", "--grant-rights-orcids",
+                        help="Grant rights to ORCiDs. %s" % possible_rights_help_text)
 
     parser.add_argument("--resume", nargs=2, metavar=("ID", "DIR"),
                         help="Resume an existing deposition (ID and DIR required).")
@@ -610,6 +674,9 @@ def main():
 
     args = parser.parse_args()
 
+    global OUTPUT_MODE
+    OUTPUT_MODE = args.output
+
     console_level = logging.WARNING
     if args.verbose == 1:
         console_level = logging.INFO
@@ -618,9 +685,15 @@ def main():
 
     log = logging.getLogger("empiar-depositor")
     log.setLevel(logging.DEBUG)
+
+    # Keep stdout clean for machine-readable output modes.
+    # In json/kv modes we suppress console logs unless the user explicitly asked for verbosity.
+    if OUTPUT_MODE in ("json", "kv") and args.verbose == 0:
+        console_level = logging.CRITICAL + 1
+
     log.handlers.clear()
 
-    console = logging.StreamHandler(sys.stdout)
+    console = logging.StreamHandler(sys.stderr)
     console.setLevel(console_level)
     console.setFormatter(logging.Formatter("%(message)s"))
     log.addHandler(console)
@@ -633,94 +706,99 @@ def main():
 
     log.propagate = False
 
+    # --- Auth validation ---
+    # Prefer token auth. If token is not provided, fall back to basic auth using
+    # --user and the EMPIAR_PASSWORD environment variable (so secrets don't go into argv).
+    args.password = None
+    if not args.token:
+        _ensure(bool(args.user), code="E_ARGS_USER", step="cli.args",
+                message="--user is required when using basic auth (no --token provided)")
+        args.password = os.environ.get("EMPIAR_PASSWORD")
+        _ensure(bool(args.password), code="E_ARGS_PASSWORD", step="cli.args",
+                message="Basic auth requires EMPIAR_PASSWORD to be set in the environment")
+
+    empiar_auth_value = args.token or args.user
+    _ensure(bool(empiar_auth_value), code="E_ARGS_AUTH", step="cli.args",
+            message="Authentication required: provide either --token or (--user + EMPIAR_PASSWORD)")
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     schema_path = Path(os.path.join(script_dir, 'empiar_deposition.schema.json'))
-    steps = [
-        "1. Validate provided meta-data and related files",
-        "2. Validate Globus identities and collection",
-        "3. Initiate EMPIAR deposition",
-        "4. Initiate EMPIAR Globus Upload",
-        "5. Submit Entry"
-    ]
-    status = ["NOT RUN"] * 5
-    current_step = 0
-    error_msg = ""
 
-    if args.production:
-        server_root = "https://www.ebi.ac.uk/empiar/deposition/api"
-        destination_endpoint_id = '138b5c78-adef-4c12-89e6-2cd170bf63ed'
-    else:
-        server_root = "https://wwwdev.ebi.ac.uk/empiar/deposition/api"
-        destination_endpoint_id = '22baf81d-120c-495f-9c83-b3f74b423950'
+    env_name = "production" if args.production else "development"
+    server_root = SETTINGS[env_name]["server_root"]
+    destination_endpoint_id = SETTINGS[env_name]["destination_endpoint_id"]
+    if args.destination_endpoint_id:
+        destination_endpoint_id = args.destination_endpoint_id
 
-    if not args.token:
-        _ensure(
-            bool(args.password),
-            code="E_ARGS_PASSWORD",
-            step="cli.args",
-            message="--password is required unless --token is provided",
-        )
+    if args.destination_endpoint_id:
+        destination_endpoint_id = args.destination_endpoint_id
 
-    log.info("*" * 40 + "\n")
-    log.info("Initiating EMPIAR deposition script:\n\n")
-    log.info("Workflow of the script:\n")
-    for s in steps:
-        log.info(f" - {s}\n")
-    log.info("*" * 40 + "\n")
+    if OUTPUT_MODE == "text":
+        log.info("*" * 40 + "\n")
+        log.info("Initiating EMPIAR deposition script:\n\n")
+        log.info("*" * 40 + "\n")
 
-    try:
-        log.info(f"\nInitiating Validation of meta-data and entry related files\n")
+    # Shared context across steps
+    ctx: dict[str, Any] = {
+        "globus_helper": None,
+        "depositor": None,
+        "meta_data_json": None,
+        "schema_data_json": None,
+    }
+
+    def step_validate_inputs_and_metadata() -> None:
+        log.info("\nInitiating Validation of meta-data and entry related files\n")
+
         json_path = Path(args.json_path)
-        _ensure(json_path.is_file(), code="E_INPUT_JSON_PATH", step="cli.inputs",
-                message=f"Metadata JSON file not found", detail=str(json_path))
-        _ensure(schema_path.is_file(), code="E_INPUT_JSON_PATH", step="cli.inputs",
-                message=f"Metadata JSON file not found", detail=str(json_path))
+        _ensure(json_path.is_file(), code="E_INPUT_JSON_PATH", step="cli.validate_inputs",
+                message="Metadata JSON file not found", detail=str(json_path))
+        _ensure(schema_path.is_file(), code="E_INPUT_SCHEMA_PATH", step="cli.validate_inputs",
+                message="Schema JSON file not found", detail=str(schema_path))
 
         meta_data_json = load_json_file(json_path, log)
         schema_data_json = load_json_file(schema_path, log)
-        _ensure(meta_data_json, code="E_INPUT_JSON_DATA", step="cli.inputs",
-                message=f"Could not fetch Metadata JSON from the file", detail=str(json_path))
-        _ensure(schema_data_json, code="E_SCHEMA_DATA", step="cli",
-                message=f"Could not fetch Schema JSON from the file", detail=str(schema_path))
+        _ensure(meta_data_json, code="E_INPUT_JSON_DATA", step="cli.validate_inputs",
+                message="Could not read Metadata JSON from file", detail=str(json_path))
+        _ensure(schema_data_json, code="E_SCHEMA_DATA", step="cli.validate_inputs",
+                message="Could not read Schema JSON from file", detail=str(schema_path))
 
-        if args.thumbnail:
-            thumbnail_path = Path(args.thumbnail)
-            _ensure(thumbnail_path.is_file(), code="E_INPUT_THUMB_PATH", step="cli.inputs",
-                    message=f"Entry thumbnail file not found", detail=str(thumbnail_path))
+        thumbnail_path = Path(args.thumbnail)
+        _ensure(thumbnail_path.is_file(), code="E_INPUT_THUMB_PATH", step="cli.validate_inputs",
+                message="Entry thumbnail file not found", detail=str(thumbnail_path))
 
         if not validate_empiar_json(meta_data_json, schema_data_json, log):
-            raise CliError(code="E_SCHEMA", step="cli.validation",
+            raise CliError(code="E_SCHEMA", step="cli.validate_inputs",
                            message="Metadata JSON does not validate against schema")
 
-        log.info(f"Validation of meta-data completed successfully\n")
-        log.info("*" * 40 + "\n")
-        status[0] = "COMPLETED"
+        ctx["meta_data_json"] = meta_data_json
+        ctx["schema_data_json"] = schema_data_json
 
-        log.info(f"\nInitiating Validation of Globus Identities and collection\n")
-        current_step = 1
+        log.info("Validation of meta-data completed successfully\n")
+        log.info("*" * 40 + "\n")
+
+    def step_validate_globus() -> None:
+        log.info("\nInitiating Validation of Globus Identities and collection\n")
         globus_helper = GlobusHelper(logger=log)
         globus_helper.validate_globus_details(endpoint_search=args.endpoint, endpoint_path=args.data_path)
-        log.info(f"\nValidation of Globus details completed successfully\n")
+        ctx["globus_helper"] = globus_helper
+        log.info("\nValidation of Globus details completed successfully\n")
         log.info("*" * 40 + "\n")
-        status[1] = "COMPLETED"
 
-        args_clean_pwd = copy.deepcopy(args)
-        if args.password is not None:
-            if args.password is True:
-                args.password = getpass('Please enter your EMPIAR password to continue:\n')
-            args_clean_pwd.password = '****'
-
+    def step_initiate_deposition() -> None:
         log.info("\nInitiating the deposition of the EMPIAR entry\n")
-        current_step = 2
 
         resume_id, resume_dir = None, None
         if args.resume:
-            _ensure(len(args.resume) >= 2, code="E_ARGS_RESUME", step="cli.args",
+            _ensure(len(args.resume) >= 2, code="E_ARGS_RESUME", step="cli.initiate_deposition",
                     message="Resume requires both Entry ID and Directory")
             resume_id, resume_dir = args.resume[0], args.resume[1]
 
+        globus_helper = ctx["globus_helper"]
+        _ensure(globus_helper is not None, code="E_STATE", step="cli.initiate_deposition",
+                message="Internal error: Globus helper not initialised")
+
         depositor = EmpiarDepositor(
-            empiar_token=args.token,
+            empiar_token=empiar_auth_value,
             json_input=args.json_path,
             server_root=server_root,
             data=args.data_path,
@@ -737,14 +815,14 @@ def main():
             globus_local_username=globus_helper.user_identity,
             log=log
         )
+        ctx["depositor"] = depositor
 
         if args.resume:
             depositor.redeposit()
         else:
             depositor.create_new_deposition()
 
-        if args.thumbnail:
-            depositor.thumbnail_upload()
+        depositor.thumbnail_upload()
 
         if args.grant_rights_usernames or args.grant_rights_emails or args.grant_rights_orcids:
             depositor.grant_rights()
@@ -752,10 +830,16 @@ def main():
         depositor.share_upload_directory()
         log.info("\nInitial deposition of the EMPIAR entry completed successfully\n")
         log.info("*" * 40 + "\n")
-        status[2] = "COMPLETED"
 
+    def step_globus_upload() -> None:
         log.info("\nInitiating Globus upload\n")
-        current_step = 3
+        globus_helper = ctx["globus_helper"]
+        depositor = ctx["depositor"]
+        _ensure(globus_helper is not None, code="E_STATE", step="cli.globus_upload",
+                message="Internal error: Globus helper not initialised")
+        _ensure(depositor is not None, code="E_STATE", step="cli.globus_upload",
+                message="Internal error: Depositor not initialised")
+
         globus_helper.globus_upload(
             destination_directory=depositor.entry_directory,
             destination_endpoint_id=destination_endpoint_id,
@@ -763,44 +847,122 @@ def main():
         )
         log.info("\nGlobus Upload completed successfully\n")
         log.info("*" * 40 + "\n")
-        status[3] = "COMPLETED"
 
+    def step_submit_entry() -> None:
         log.info("\nInitiating submission of the EMPIAR entry\n")
-        if args.stop_submit:
-            log.info("\nSubmission skipped as requested\n")
-            status[4] = "NOT CHOSEN"
-        else:
-            current_step = 4
-            depositor.submit_deposition()
-            log.info("\nSubmission completed successfully\n")
-            log.info("*" * 40 + "\n")
-            status[4] = "COMPLETED"
+        depositor = ctx["depositor"]
+        _ensure(depositor is not None, code="E_STATE", step="cli.submit_entry",
+                message="Internal error: Depositor not initialised")
 
-    except Exception as e:
-        log.exception(f"Unexpected error occurred during execution. {e}")
-        status[current_step] = "ERRORED"
-        raise e
+        depositor.submit_deposition()
+        log.info("\nSubmission completed successfully\n")
+        log.info("*" * 40 + "\n")
 
+    workflow_steps: list[Step] = [
+        Step(id="cli.validate_inputs", name="1. Validate provided meta-data and related files",
+             run=step_validate_inputs_and_metadata),
+        Step(id="cli.validate_globus", name="2. Validate Globus identities and collection",
+             run=step_validate_globus),
+        Step(id="cli.initiate_deposition", name="3. Initiate EMPIAR deposition",
+             run=step_initiate_deposition),
+        Step(id="cli.globus_upload", name="4. Initiate EMPIAR Globus Upload",
+             run=step_globus_upload),
+        Step(id="cli.submit_entry", name="5. Submit Entry",
+             run=step_submit_entry,
+             should_run=lambda: not args.stop_submit),
+    ]
+
+    status: list[str] = ["NOT RUN"] * len(workflow_steps)
+    if OUTPUT_MODE == "text":
+        log.info("Workflow of the script:\n")
+        for s in workflow_steps:
+            log.info(f" - {s.name}\n")
+        log.info("*" * 40 + "\n")
+
+    # Execute workflow_steps
+    for i, step in enumerate(workflow_steps):
+        if not step.should_run():
+            status[i] = "NOT CHOSEN"
+            continue
+
+        try:
+            step.run()
+            status[i] = "COMPLETED"
+        except CliError:
+            status[i] = "ERRORED"
+            raise
+        except KeyboardInterrupt:
+            status[i] = "ERRORED"
+            raise
+        except Exception as e:
+            status[i] = "ERRORED"
+            raise CliError(
+                code="E_UNEXPECTED",
+                step=step.id,
+                message="Unexpected error occurred during execution",
+                detail=traceback.format_exc()
+            ) from e
+
+    # Summary
     log.info("\nSummary:\n")
-    for i, step_text in enumerate(steps):
-        log.info(f"{step_text} - {status[i]}\n")
-
-    log.info("*" * 40 + "\n")
-    log.info(
-        f"Entry **{depositor.entry_id}** deposited to **{depositor.entry_directory}** and submitted as **{depositor.empiar_accession}**\n")
-    log.info("*" * 40 + "\n")
-
+    for i, step in enumerate(workflow_steps):
+        log.info(f"{step.name} - {status[i]}\n")
+    depositor = ctx.get("depositor")
+    if depositor is not None and getattr(depositor, "entry_id", None) is not None:
+        # Success record (stdout). In text mode we also keep a human-readable line.
+        if OUTPUT_MODE == "text":
+            print(
+                f"Entry {depositor.entry_id} deposited to {depositor.entry_directory} "
+                f"and submitted as {depositor.empiar_accession}",
+                file=sys.stdout,
+            )
+        emit_result(
+            {
+                "ok": True,
+                "deposition_id": depositor.entry_id,
+                "deposition_token": depositor.entry_directory,
+                "empiar_accession": depositor.empiar_accession,
+            },
+            stream=sys.stdout,
+        )
 
 
 if __name__ == "__main__":
     try:
         main()
     except CliError as e:
-        logging.error(f"\nFATAL: {e}")
+        record = {
+            "ok": False,
+            "code": e.code,
+            "step": e.step,
+            "message": e.message,
+            "detail": e.detail,
+        }
+        if OUTPUT_MODE == "text":
+            print(f"FATAL: [{e.code}] ({e.step}) {e.message}", file=sys.stderr)
+        emit_result(record, stream=sys.stderr)
         sys.exit(2)
     except KeyboardInterrupt:
-        logging.error("\n[E_INTERRUPT] Operation cancelled by user.")
+        record = {
+            "ok": False,
+            "code": "E_INTERRUPT",
+            "step": "cli.main",
+            "message": "Operation cancelled by user.",
+            "detail": None,
+        }
+        if OUTPUT_MODE == "text":
+            print("[E_INTERRUPT] Operation cancelled by user.", file=sys.stderr)
+        emit_result(record, stream=sys.stderr)
         sys.exit(130)
     except Exception as e:
-        logging.exception(f"Unexpected error occurred during execution. {e}")
+        record = {
+            "ok": False,
+            "code": "E_UNCAUGHT",
+            "step": "cli.main",
+            "message": f"Uncaught exception: {type(e).__name__}: {e}",
+            "detail": None,
+        }
+        if OUTPUT_MODE == "text":
+            print(f"FATAL: [E_UNCAUGHT] (cli.main) {record['message']}", file=sys.stderr)
+        emit_result(record, stream=sys.stderr)
         sys.exit(1)
