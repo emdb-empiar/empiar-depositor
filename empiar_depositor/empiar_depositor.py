@@ -855,6 +855,10 @@ def main():
             entry_reference=depositor.entry_id
         )
         log.info("\nGlobus Upload completed successfully\n")
+        acknowledge_result = depositor.acknowledge_completion()
+        _ensure(acknowledge_result, code="E_ACK_COMPLETION", step="cli.globus_upload",
+                message="Internal error: Globus Upload completion could not be acknowledged")
+        log.info("\nGlobus Upload completion acknowledged successfully\n")
         log.info("*" * 40 + "\n")
 
     def step_submit_entry() -> None:
