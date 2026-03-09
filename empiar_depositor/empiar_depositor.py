@@ -197,7 +197,7 @@ class EmpiarDepositor:
 
     def __init__(
         self,
-        empiar_token,
+        empiar_auth_value,
         json_input,
         server_root,
         data,
@@ -225,9 +225,10 @@ class EmpiarDepositor:
         self.fetch_entry_upload_directory = self.server_root + "/fetch_entry_upload_directory/"
         self.acknowledge_upload = self.server_root + "/acknowledge_upload/"
 
-        self.username = empiar_token if password else None
+        # Set username depending upon the password field
+        self.username = empiar_auth_value if password else None
         self.password = password
-        self.auth_header = {'Authorization': 'Token ' + empiar_token} if not password else {}
+        self.auth_header = {'Authorization': 'Token ' + empiar_auth_value} if not password else {}
         self.deposition_headers = {'Content-type': 'application/json'}
         self.deposition_headers.update(self.auth_header)
         self.basic_auth = HTTPBasicAuth(self.username, self.password) if password else None
@@ -254,6 +255,17 @@ class EmpiarDepositor:
     def prepare_rights_data(data):
         """
         Formats user rights input into a dictionary for API submission.
+        Expected input format:
+            "<principal>:<rights>,<principal>:<rights>,..."
+            - <principal> is the username, email, or ORCID identifier
+            - <rights> is the permission code expected by the API
+        Example:
+            "alice:1,bob:3,charlie:4"
+
+        Returns:
+            dict | None:
+                A dictionary mapping each principal to its rights code.
+                Returns None if the input is empty or malformed.
         """
         if data and data.count(':') == data.count(',') + 1:
             return {k[0]: k[1] for k in tuple(i.split(':') for i in data.split(','))}
@@ -677,6 +689,8 @@ def main():
     global OUTPUT_MODE
     OUTPUT_MODE = args.output
 
+    # Logging is controlled only by -v / -vv.
+    # Output mode affects only the final result format.
     console_level = logging.WARNING
     if args.verbose == 1:
         console_level = logging.INFO
@@ -685,11 +699,6 @@ def main():
 
     log = logging.getLogger("empiar-depositor")
     log.setLevel(logging.DEBUG)
-
-    # Keep stdout clean for machine-readable output modes.
-    # In json/kv modes we suppress console logs unless the user explicitly asked for verbosity.
-    if OUTPUT_MODE in ("json", "kv") and args.verbose == 0:
-        console_level = logging.CRITICAL + 1
 
     log.handlers.clear()
 
@@ -798,7 +807,7 @@ def main():
                 message="Internal error: Globus helper not initialised")
 
         depositor = EmpiarDepositor(
-            empiar_token=empiar_auth_value,
+            empiar_auth_value=empiar_auth_value,
             json_input=args.json_path,
             server_root=server_root,
             data=args.data_path,
